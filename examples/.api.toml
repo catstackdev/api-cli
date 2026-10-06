@@ -1,0 +1,12 @@
+# Project config for trying the examples: run `api` from inside examples/ and it
+# finds this file (the nearest .api.toml above the current directory).
+#
+#   python3 server.py            # in one terminal
+#   api run users.http --list    # in another: no flags needed
+#
+# Check it with: api config validate
+
+default_env = "local"
+
+[env.local]
+url = "http://127.0.0.1:8787"

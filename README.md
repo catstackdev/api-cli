@@ -517,6 +517,24 @@ GET /users/{{create.response.body.data.id}}
 - Keep your own files in `.api/requests/` so `api run <name>` finds them, or let
   `api openapi` write one for you from your API's spec.
 
+**Try them for real.** `examples/server.py` is a tiny in-memory API (Python 3, no
+installs) with the endpoints the examples call, and `examples/.api.toml` points an
+env called `local` at it. Run `api` from inside `examples/` and it finds that config:
+
+```zsh
+python3 examples/server.py        # terminal 1: http://127.0.0.1:8787, logs each request
+cd examples                       # terminal 2
+api config validate               # the .api.toml is read from here
+api run users.http --all
+api run chaining.http --all       # create, then fetch and delete the id it returned
+api run checks.http --all         # 7 assertions; exit 0
+```
+
+From another directory, add the server instead: `api --base http://127.0.0.1:8787 run
+examples/users.http --all`. The server never deletes its seed users, so the files can
+be re-run. In Neovim, start `nvim` inside `examples/` so a terminal inherits that
+directory.
+
 The next sections list every variable, the response capture and the checks.
 
 ## Diff, saved requests, history, HAR

@@ -60,8 +60,8 @@ internal/openapi/         OpenAPI JSON -> sanitised method+path index (pluggable
 Makefile                  build / install / check / fuzz / cover / vuln / release / smoke
 test/                     shim.zsh (make e2e), smoke.zsh + smoke_srv.py (make smoke)
 SECURITY.md               rule -> code symbol -> test tables (guarded by a test)
-examples/                 runnable .http files for the README tour (internal/cli/examples_test.go
-                          dry-runs them all, so they cannot rot)
+examples/                 runnable .http files for the README tour, server.py (stub API) and
+                          .api.toml to try them; internal/cli/examples_test.go dry-runs them all
 skills/api-cli.md         Claude Code skill for USERS of the tool (make install-skill)
 ../../src/api.sh          zsh shim (top-level src/, auto-loaded by init.sh)
 ```
