@@ -149,6 +149,14 @@ Three ways to say which server you talk to, in this precedence:
 
 ```zsh
 api env load staging      # source .env.staging (zsh does the sourcing, so $VAR works)
+`api env use` / `api env load` only set variables **in your shell**. A program
+that starts `api` without them (a television channel, Neovim, a script, CI) sees
+only this last one, so a project that wants them to work sets `default_env` in
+its `.api.toml`. `api config init --local` writes the line commented out
+(uncomment it with the `[env.local]` block);
+`api config set default_env <name> --local` warns when no env of that name is
+defined, and `api config validate` reports it too.
+
 api env use thien         # switch to [env.thien] (plain assignments, not exported)
 api env use               # no name: pick one with fzf
 api login /auth/login '{"u":"x","p":"y"}'

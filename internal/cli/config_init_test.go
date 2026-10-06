@@ -52,13 +52,16 @@ func TestConfigInitAlwaysListsEveryUseCase(t *testing.T) {
 		"# [env.local]", "# url =", "# graphql =", "# endpoints =", "# headers =",
 		"# [env.local.login]", "# gql =", "# token_path =", "# vars =", "api secret set upscale-local --for http://localhost:3000", "No url is needed for the login",
 		"# [alias]", "# me =",
+		`# default_env = "local"`, // honoured in a project file, and the line tv/nvim/CI need
 	} {
 		if !strings.Contains(proj, want) {
 			t.Errorf("the PROJECT file lacks %q:\n%s", want, proj)
 		}
 	}
-	if strings.Contains(proj, "# token_env =") || strings.Contains(proj, "# default_env") {
-		t.Errorf("the project file must not suggest token_env / default_env (global-only):\n%s", proj)
+	// token_env is global-only (a project file could point it at your tokens). default_env
+	// is not: it only picks which env's url is used, and never carries a token.
+	if strings.Contains(proj, "# token_env =") {
+		t.Errorf("the project file must not suggest token_env (global-only):\n%s", proj)
 	}
 	// and it is still valid TOML that only activates what was detected
 	if r := run(t, "", "config", "get", "vars.graphql_url"); strings.TrimSpace(r.out) != "VITE_GRAPHQL_URL" || strings.Contains(r.err, "ignored") {

@@ -191,6 +191,40 @@ func TestTemplateParses(t *testing.T) {
 	}
 }
 
+// Without a default_env a project's env is invisible to anything that starts api
+// without the shell's session (tv, nvim, CI): `api env use local` is not enough. The
+// project template must offer the line, and it must sit ABOVE [vars], or it would
+// belong to that table.
+func TestProjectTemplateOffersADefaultEnvThatWorksWhenUncommented(t *testing.T) {
+	tpl := Render(Project, "", "")
+	line := `# default_env = "local"`
+	i, vars := strings.Index(tpl, line), strings.Index(tpl, "\n[vars]")
+	if i < 0 || vars < 0 || i > vars {
+		t.Fatalf("the default_env example must exist and come before [vars] (at %d, [vars] at %d):\n%s", i, vars, tpl)
+	}
+
+	path := filepath.Join(t.TempDir(), ".api.toml")
+	uncommented := strings.NewReplacer(
+		line, `default_env = "local"`,
+		"# [env.local]\n# url = ", "[env.local]\nurl = ",
+	).Replace(tpl)
+	write(t, path, uncommented)
+	c, err := Read(path)
+	if err != nil {
+		t.Fatalf("default_env + [env.local] uncommented does not parse: %v\n%s", err, uncommented)
+	}
+	if c.DefaultEnv != "local" || c.Env["local"].URL != "http://localhost:3000" {
+		t.Fatalf("default_env=%q env.local=%+v", c.DefaultEnv, c.Env["local"])
+	}
+
+	// the trap the position guards: under the header it is a [vars] key, which does not
+	// exist, and unknown keys are rejected (so a misplaced line cannot be ignored silently)
+	write(t, path, strings.Replace(tpl, "[vars]\n", "[vars]\ndefault_env = \"local\"\n", 1))
+	if _, err := Read(path); err == nil {
+		t.Fatal("default_env under [vars] must be rejected")
+	}
+}
+
 func TestBothTemplatesParseAndActivate(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "t.toml")
 	cases := map[string]string{

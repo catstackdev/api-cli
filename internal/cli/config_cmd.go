@@ -191,6 +191,15 @@ func (a *app) configSetCmd() *cobra.Command {
 			if !preserved {
 				a.say("⚠ this file's layout could not be edited in place: it was rewritten and its comments were not kept")
 			}
+			// a default_env that names nothing finds no server (tv, nvim and CI start api
+			// without your shell's session): say so now, not at the first failed request
+			if _, defined := a.cfg.Env[args[1]]; args[0] == "default_env" && args[1] != "" && !defined {
+				flag := "--global"
+				if isLocal {
+					flag = "--local"
+				}
+				a.say(fmt.Sprintf("⚠ env %q is not defined yet, so default_env finds no server: api config set env.%s.url <url> %s", args[1], args[1], flag))
+			}
 			return nil
 		},
 		ValidArgsFunction: a.completeConfigKey,

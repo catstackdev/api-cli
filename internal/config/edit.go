@@ -333,6 +333,12 @@ func Render(scope Scope, baseURL, graphqlURL string) string {
 # Overrides the global config (~/.config/api/config.toml) key by key.
 # Precedence: flags > --env > API_* variables > default_env > [defaults] > built-in.
 
+# Env to use when the shell has no session. 'api env use' only sets variables in your
+# shell, so tv, nvim, scripts and CI start api without them and find no server unless a
+# default_env names one. Uncomment it together with the [env.local] block below.
+# (Keep it above [vars]: a key written after a table header belongs to that table.)
+# default_env = "local"
+
 # ── .env mapping: this project's own variable names ────────────────────────
 # Which variables of this project's .env files hold its URLs, for projects that
 # do not use API_BASE_URL / API_GRAPHQL_URL. 'api env load' copies them over, and
