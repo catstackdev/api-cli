@@ -10,7 +10,10 @@
 
 HERE="${0:A:h}"
 API_DIR="${HERE:h}"
-PROFILE_SRC="${API_DIR:h:h}/src"
+# The shim lives in the profile repo: next to this module when it is mounted
+# there, else the installed profile (override with API_PROFILE_SRC).
+PROFILE_SRC="${API_PROFILE_SRC:-${API_DIR:h:h}/src}"
+[[ -f "$PROFILE_SRC/api.sh" ]] || PROFILE_SRC="$HOME/.config/cybercat/profile/src"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/api-smoke.XXXXXX")"
 typeset -i FAILS=0 CHECKS=0 SKIPS=0
 typeset -a PIDS=()
