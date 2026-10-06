@@ -520,3 +520,45 @@ func TestOpenAPIPickGeneratedFileCannotCarryAnInjectedRequest(t *testing.T) {
 		t.Fatalf("injected content in the editor file:\n%s", doc)
 	}
 }
+
+// A tv channel or an editor starts api without the shell's session. The error must
+// name the missing server, not send the user to `sync`, and a project .api.toml must
+// be enough to find the index.
+func TestOpenAPIListWithoutAServerSaysSo(t *testing.T) {
+	clearSession(t)
+	t.Setenv("API_OPENAPI_CACHE_DIR", t.TempDir())
+	t.Chdir(t.TempDir()) // api walks up from here for a .api.toml: none may apply
+
+	r := run(t, "", "openapi", "list")
+	if r.code == 0 || !strings.Contains(r.err, "no base URL") || strings.Contains(r.err, "no OpenAPI index") {
+		t.Fatalf("no server selected: exit %d, stderr %q", r.code, r.err)
+	}
+	if !strings.Contains(r.err, ".api.toml") {
+		t.Errorf("the message should mention a default_env in .api.toml: %q", r.err)
+	}
+
+	// a server is selected but nothing was synced for it: now `sync` IS the answer
+	r = run(t, "", "--base", "http://127.0.0.1:1", "openapi", "list")
+	if r.code == 0 || !strings.Contains(r.err, "no OpenAPI index") || !strings.Contains(r.err, "api openapi sync") {
+		t.Fatalf("server selected, no index: exit %d, stderr %q", r.code, r.err)
+	}
+}
+
+func TestOpenAPIListFindsTheServerFromAProjectConfig(t *testing.T) {
+	srv := openapiSrv(t, map[string][2]string{"/openapi.json": {"200", petSpec}})
+	clearSession(t)
+	t.Setenv("API_OPENAPI_CACHE_DIR", t.TempDir())
+	dir := projectWith(t, map[string]string{
+		".api.toml": "default_env = \"local\"\n\n[env.local]\nurl = \"" + srv.URL + "\"\n",
+	})
+	t.Chdir(dir)
+
+	if r := run(t, "", "openapi", "sync"); r.code != 0 {
+		t.Fatalf("sync: exit %d, stderr %q", r.code, r.err)
+	}
+	// a fresh process with no session, like tv: the config alone selects the server
+	r := run(t, "", "openapi", "list", "users")
+	if r.code != 0 || !strings.Contains(r.out, "List users") {
+		t.Fatalf("list from config only: exit %d\nstdout %q\nstderr %q", r.code, r.out, r.err)
+	}
+}

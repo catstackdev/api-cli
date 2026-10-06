@@ -49,7 +49,7 @@ var fileSafe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 func (a *app) openapiCacheFile() (string, error) {
 	base := a.session().BaseURL
 	if base == "" {
-		return "", &ExitError{Code: exitGeneric, Msg: "✗ no base URL: `api env load <suffix>` or `api env use <name>` first (the index is kept per server)"}
+		return "", &ExitError{Code: exitGeneric, Msg: "✗ no base URL: `api env load <suffix>`, `api env use <name>`, --base/--env, or a default_env in a .api.toml (the index is kept per server)"}
 	}
 	o := origin(base)
 	key := strings.NewReplacer("://", "_", ":", "-", "[", "", "]", "").Replace(o)
@@ -81,8 +81,13 @@ func (a *app) loadOpenAPI() *openapi.Index {
 	return &idx
 }
 
-// requireOpenAPI is loadOpenAPI for commands that cannot work without an index.
+// requireOpenAPI is loadOpenAPI for commands that cannot work without an index. With
+// no server selected it says so: "no index" would send you to `sync`, which cannot
+// help (a tv channel or an editor starts api without your shell's session).
 func (a *app) requireOpenAPI() (*openapi.Index, error) {
+	if _, err := a.openapiCacheFile(); err != nil {
+		return nil, err
+	}
 	idx := a.loadOpenAPI()
 	if idx == nil {
 		return nil, &ExitError{Code: exitGeneric, Msg: "✗ no OpenAPI index for this server: run `api openapi sync`"}
