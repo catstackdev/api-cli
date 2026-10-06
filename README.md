@@ -466,6 +466,59 @@ Only key names are read. Values never reach the output unless you pass
 `--keep-values`, and even then secret-looking keys (`TOKEN`, `SECRET`,
 `PASSWORD`, `KEY`, ...) and URLs with embedded credentials stay blank.
 
+## `.http` files: a short tour
+
+A `.http` file is a plain-text list of requests. It is the format of the JetBrains
+HTTP client and the VS Code REST Client, so the same file works in your editor and
+from the shell. The files in [`examples/`](examples/) run as they are (change the
+paths to match your API):
+
+| File | Shows |
+| --- | --- |
+| [`users.http`](examples/users.http) | variables, a query string, JSON bodies, headers, filters, a body from a file |
+| [`chaining.http`](examples/chaining.http) | using one response in the next request |
+| [`checks.http`](examples/checks.http) | `# @assert` response checks for CI |
+
+```zsh
+api run examples/users.http --list         # what is in the file
+api run examples/users.http "List users"   # one request, by name or number
+api run examples/users.http --all --dry    # print every request, send none
+```
+
+What a file looks like:
+
+```
+@limit = 10
+
+### List users
+# @filter .data
+GET /users?limit={{limit}}
+Accept: application/json
+
+### Create user
+# @name create
+POST /users
+Content-Type: application/json
+
+{"name": "Ann", "id": "{{$uuid}}"}
+
+### Fetch it back
+GET /users/{{create.response.body.data.id}}
+```
+
+- `@limit = 10` is a file variable, used as `{{limit}}`; `--var limit=5` beats it.
+- `###` starts a request and the rest of the line is its name (`api run file "List users"`).
+- `# @filter` is the default jq filter, `# @name` names a request so a later one can
+  read its response, `# @assert` checks it. Other `#` and `//` lines are comments.
+- A path that starts with `/` goes to the **active server** with your session token;
+  a full URL on another host gets none.
+- Headers follow the request line, then a blank line, then the body (`< ./file.json`
+  reads it from a file next to the `.http` file).
+- Keep your own files in `.api/requests/` so `api run <name>` finds them, or let
+  `api openapi` write one for you from your API's spec.
+
+The next sections list every variable, the response capture and the checks.
+
 ## Diff, saved requests, history, HAR
 
 **`api diff --envs dev,thien <path> [.filter]`** sends one request to two envs,

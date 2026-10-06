@@ -1,0 +1,34 @@
+# Use one response in the next request.
+#
+# "# @name create" names a request. Later requests read its response with
+#   {{create.response.body.data.id}}   {{create.response.headers.X-Req-Id}}
+#   {{create.response.status}}         {{create.response.body.items[0].id}}
+#
+# Ask for "fetch" or "delete" and `create` runs first, once, silently; --all runs
+# the file in order. --dry sends nothing and shows <placeholders> instead.
+#
+#   api run examples/chaining.http fetch
+#   api run examples/chaining.http --all
+#
+# A captured value is data, never a template, and counts as a secret: it is not
+# sent to another host without --trust-hosts. Only key and [n] paths work, not jq.
+#
+# Logging in? Prefer `api login` (the token then lives in your session). If a file
+# must log in itself, capture the token the same way:
+#   Authorization: Bearer {{login.response.body.data.token}}
+
+### Create a user
+# @name create
+POST /users
+Content-Type: application/json
+
+{"name": "Ann"}
+
+### Fetch it back
+# @name fetch
+# @filter .data
+GET /users/{{create.response.body.data.id}}
+
+### Delete it
+# @name delete
+DELETE /users/{{create.response.body.data.id}}

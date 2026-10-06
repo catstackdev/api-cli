@@ -121,6 +121,37 @@ The expression runs on `{status, headers, body, ms}` and must be `true`. With
 `@assert` the assertions decide the result: `.status == 404` passes for a 404. A
 failure prints the expression and a reason, never the response, and exits 3.
 
+Shape of a file (the JetBrains / VS Code REST Client format):
+
+```
+@limit = 10
+
+### Create user
+# @name create
+POST /users
+Content-Type: application/json
+
+{"name": "Ann", "id": "{{$uuid}}"}
+
+### Fetch it back
+# @filter .data
+GET /users/{{create.response.body.data.id}}
+```
+
+- `@limit = 10` is a file variable (`{{limit}}`; `--var limit=5` overrides it).
+  `{{$uuid}}`, `{{$timestamp}}`, `{{$isoTimestamp}}` are built in; `{{$env API_X}}`
+  reads `API_*` variables only.
+- `###` starts a request and the text is its name, unless `# @name` gives it
+  another (`api run file create`, or by number: `api run file 2`). `# @filter` is the default jq filter, `# @name` names it for
+  `{{create.response.body.data.id}}` in a later request (which makes `create` run
+  first, once). `#` and `//` lines are comments, and a comment must be on its own
+  line: after code it is read as part of that line (or rejected).
+- A `/` path goes to the active server with the session token. A body can come from
+  a file with `< ./payload.json` (relative to the `.http` file).
+- Check a file you wrote with `api run file --all --dry`: it parses everything,
+  prints each request and sends nothing. The repository's `examples/` directory has
+  runnable files (`users.http`, `chaining.http`, `checks.http`).
+
 ## Safety rules
 
 - Your token goes to the active base URL only; an absolute URL on another host

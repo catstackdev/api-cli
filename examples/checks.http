@@ -1,0 +1,31 @@
+# Response checks for CI. "# @assert <jq>" lines above the request line must all
+# be true. The expression sees one object: {status, headers, body, ms}
+# (header names are lower-case; a body that is not JSON is a string).
+#
+#   api run examples/checks.http --all                run everything, stop at the first failure
+#   api run examples/checks.http --all --keep-going   run on, finish with a summary
+#
+# Exit codes: 0 all passed, 3 an assertion failed, 2 a bad expression (nothing was
+# sent). With @assert the assertions decide: ".status == 404" passes for a 404.
+# A failure prints the expression and a reason, never the response, so CI logs do
+# not collect tokens. --dry skips the checks. VS Code and JetBrains ignore the
+# comment, so the same file still runs there.
+
+### Health
+# @assert .status == 200
+# @assert .body.status == "ok"
+GET /health
+
+### Create user
+# @assert .status == 201
+# @assert .body.data.id != null
+# @assert .headers["content-type"] | test("json")
+# @assert .ms < 1000
+POST /users
+Content-Type: application/json
+
+{"name": "Ann", "email": "ann@example.test"}
+
+### Unknown user is a 404
+# @assert .status == 404
+GET /users/does-not-exist

@@ -1,0 +1,52 @@
+# A tour of the .http format: variables, queries, bodies, headers, filters.
+#
+#   api run examples/users.http --list            what is in the file
+#   api run examples/users.http "List users"      one request, by name
+#   api run examples/users.http 2 .data[0]        by number, with a jq filter
+#   api run examples/users.http --all --dry       print every request, send none
+#   api run examples/users.http "Get user" --var id=7
+#
+# A path that starts with / goes to the ACTIVE server (api env use, --env or
+# --base) and carries your session token. Change the paths to match your API.
+# A full URL on another host gets no token unless you pass --trust-hosts.
+
+# File variables: "@name = value", used as {{name}}. --var name=value beats them.
+@page = 1
+@limit = 10
+@id = 42
+
+### List users
+# @filter .data
+GET /users?page={{page}}&limit={{limit}}
+Accept: application/json
+
+### Search users
+# A long query can be split over indented ? and & lines.
+GET /users/search
+  ?q=ann
+  &limit={{limit}}
+
+### Get user
+GET /users/{{id}}
+
+### Create user
+# {{$uuid}}, {{$timestamp}} and {{$isoTimestamp}} are filled in at send time.
+POST /users
+Content-Type: application/json
+Idempotency-Key: {{$uuid}}
+
+{
+  "name": "Ann",
+  "email": "ann@example.test",
+  "createdAt": "{{$isoTimestamp}}"
+}
+
+### Create user from a file
+# "< file" reads the body from a file, relative to this .http file.
+POST /users
+Content-Type: application/json
+
+< ./user.json
+
+### Delete user
+DELETE /users/{{id}}
