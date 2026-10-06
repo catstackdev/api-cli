@@ -698,6 +698,7 @@ Flags:
   -H, --header stringArray         extra header, "Name: value" (repeatable)
   -i, --include                    print the status line and response headers
   -k, --insecure                   skip TLS certificate verification
+      --item string                implies --pick: use this "<query|mutation> <name>" instead of choosing it with fzf (for tv, editors)
       --no-auth                    do not send the bearer token
   -o, --output string              write the body to a file
       --pick                       choose the endpoint and the query with fzf, edit the generated query, then run it (default with no query on a terminal)

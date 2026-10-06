@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -166,5 +167,77 @@ func TestEditorDocSplit(t *testing.T) {
 	}
 	if q, v := splitEditorDoc("query { a }"); q != "query { a }" || v != "" {
 		t.Fatalf("%q %q", q, v)
+	}
+}
+
+// A tv channel (or an editor) has already chosen the item: --item skips the second
+// list. Everything after that, the mutation question included, is unchanged.
+func TestGQLItemSkipsTheListAndImpliesPick(t *testing.T) {
+	s := pickEnv(t)
+	t.Setenv("FAKE_PLAIN_LINE", "1") // the fake fzf would choose "mutation login"
+	t.Setenv("EDITOR_TOUCH", "1")
+
+	// no --pick: --item alone is enough
+	r := run(t, "", "gql", "-e", "user", "--item", "query me")
+	if r.code != 0 || s.ran("query Me") != 1 || s.ran("mutation Login") != 0 {
+		t.Fatalf("%+v bodies=%v", r, s.bodies)
+	}
+}
+
+func TestGQLItemRejectsWhatIsNotAQueryOrMutation(t *testing.T) {
+	s := pickEnv(t)
+	t.Setenv("EDITOR_TOUCH", "1")
+	for _, item := range []string{"query nope", "type User", "nonsense", "enum Role"} {
+		r := run(t, "", "gql", "-e", "user", "--item", item)
+		if r.code != exitUsage || !strings.Contains(r.err, "has no query or mutation") || s.ran("{") != 0 {
+			t.Errorf("%q: %+v bodies=%v", item, r, s.bodies)
+		}
+	}
+}
+
+func TestGQLItemStillAsksBeforeAMutation(t *testing.T) {
+	s := pickEnv(t)
+	t.Setenv("EDITOR_TOUCH", "1")
+	r := run(t, "n\n", "gql", "-e", "user", "--item", "mutation login")
+	if r.code != exitGeneric || !strings.Contains(r.err, "changes data") || s.ran("mutation Login") != 0 {
+		t.Fatalf("declined: %+v", r)
+	}
+	if r := run(t, "y\n", "gql", "-e", "user", "--item", "mutation login"); r.code != 0 || s.ran("mutation Login") != 1 {
+		t.Fatalf("confirmed: %+v bodies=%v", r, s.bodies)
+	}
+}
+
+// The skeleton writes a nested input on ONE line, which for a real input type (an
+// address, a dozen ids) is unreadable in the editor: the variables are laid out first.
+func TestGQLPickShowsTheVariablesIndented(t *testing.T) {
+	pickEnv(t)
+	t.Setenv("EDITOR_TOUCH", "1")
+	r := run(t, "y\n", "gql", "-e", "user", "--item", "mutation login")
+	if r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	got, err := os.ReadFile(os.Getenv("EDITOR_RECORD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, vars, ok := strings.Cut(string(got), variablesMarker+"\n")
+	if !ok {
+		t.Fatalf("no variables marker in:\n%s", got)
+	}
+	if strings.TrimSpace(vars) == "{}" {
+		t.Skip("the fixture's mutation has no variables to lay out")
+	}
+	// every key on its own line, nested ones one level deeper, and still valid JSON
+	for _, line := range strings.Split(strings.TrimRight(vars, "\n"), "\n") {
+		if strings.Count(line, `":`) > 1 {
+			t.Errorf("two keys on one line, the nested input is still inline: %q\nfull:\n%s", line, vars)
+		}
+	}
+	if !strings.Contains(vars, "\n    \"") {
+		t.Errorf("a nested key must be indented a level deeper:\n%s", vars)
+	}
+	var v any
+	if err := json.Unmarshal([]byte(vars), &v); err != nil {
+		t.Errorf("the variables must stay valid JSON: %v\n%s", err, vars)
 	}
 }

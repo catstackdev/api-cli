@@ -138,7 +138,7 @@ func (a *app) confirm(question string) bool {
 // gqlInteractive is `api gql` with no query on a terminal (or --pick): choose the
 // endpoint, choose a query or mutation (fzf, with a preview), edit the generated
 // skeleton in your editor, run it. Mutations ask for confirmation first.
-func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter string, yes bool) error {
+func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter string, yes bool, item string) error {
 	if endpoint == "" {
 		eps := a.schemaProfile().Endpoints
 		if len(eps) == 0 {
@@ -212,14 +212,25 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 		return &ExitError{Code: exitGeneric, Msg: "✗ " + endpoint + " has no queries or mutations"}
 	}
 	schema.SortIndex(lines)
-	preview := fmt.Sprintf("%s schema show --file %s {2} {3}", session.Quote(exe), session.Quote(file))
-	line, _, cancelled, err := a.pickWithFzf(lines,
-		"--with-nth=2..", "--prompt="+label+"> ", "--preview="+preview, "--preview-window=right,60%,wrap")
-	if err != nil {
-		return err
-	}
-	if cancelled {
-		return &ExitError{Code: exitGeneric}
+	var line string
+	if item != "" {
+		// the caller already chose (a tv channel, an editor): no second list. What was
+		// chosen only picks the skeleton: what is SAVED still decides whether to ask.
+		var ok bool
+		if line, ok = findItem(lines, item); !ok {
+			return &ExitError{Code: exitUsage, Msg: fmt.Sprintf("✗ %s has no query or mutation %q (list them: api schema names %s)", endpoint, item, endpoint)}
+		}
+	} else {
+		preview := fmt.Sprintf("%s schema show --file %s {2} {3}", session.Quote(exe), session.Quote(file))
+		picked, _, cancelled, err := a.pickWithFzf(lines,
+			"--with-nth=2..", "--prompt="+label+"> ", "--preview="+preview, "--preview-window=right,60%,wrap")
+		if err != nil {
+			return err
+		}
+		if cancelled {
+			return &ExitError{Code: exitGeneric}
+		}
+		line = picked
 	}
 	parts := strings.SplitN(line, " ", 3)
 	kind, field := parts[1], parts[2]
@@ -227,6 +238,10 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 	query, vars, err := s.Skeleton(kind, field)
 	if err != nil {
 		return err
+	}
+	// the skeleton puts a nested input on one line: a long input type is unreadable
+	if pretty, ok := prettyBody(vars); ok {
+		vars = pretty
 	}
 	header := "# " + label + ": " + kind + " " + field + " — save to run, quit without saving to cancel\n" +
 		"# the JSON below the marker line are the variables; delete it if there are none\n"
@@ -284,6 +299,17 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 	a.say("→ " + cmdline)
 
 	return a.dispatch(ctx, spec, o, orDot(filter), "", nil)
+}
+
+// findItem returns the index line (<endpoint> <kind> <name>) for "<kind> <name>".
+func findItem(lines []string, item string) (string, bool) {
+	want := strings.Join(strings.Fields(item), " ")
+	for _, l := range lines {
+		if p := strings.SplitN(l, " ", 3); len(p) == 3 && p[1]+" "+p[2] == want {
+			return l, true
+		}
+	}
+	return "", false
 }
 
 func orDot(s string) string {

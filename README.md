@@ -263,15 +263,23 @@ api gql                  # fzf: endpoint (the last one first) -> query or mutati
 api gql -e user          # skip the endpoint step
 ```
 
-It generates a ready operation (variables declared from the arguments, a selection
-of the return type's plain fields) and opens it in your editor: **save to run, quit
-without saving to cancel**. Put the variables as JSON below the `### variables`
-line. The query that will run decides whether to ask: a mutation (even one you
-edited a query into) shows `changes data on <server>: run it? [y/N]`; `--yes`
-skips that. The equivalent `api gql -e … '…'` line is printed so a good query can
-become an alias; variables are left out of it when a name looks like a secret.
+It generates a ready operation (variables declared from the arguments, a
+selection of the return type's plain fields) and opens it in your editor: **save
+to run, quit without saving to cancel**. Put the variables as JSON below the
+`### variables` line. The query that will run decides whether to ask: a mutation
+(even one you edited a query into) shows
+`changes data on <server>: run it? [y/N]`; `--yes` skips that. The equivalent
+`api gql -e … '…'` line is printed so a good query can become an alias;
+variables are left out of it when a name looks like a secret.
+api gql -e user --item 'query me'   # skip the query step too (implies --pick): for a
+                         # television channel or an editor that already chose the item
+`--item '<query|mutation> <name>'` takes the operation you already chose
+(anything that is not a query or mutation of the endpoint is an error);
+everything after that, the save-to-run rule and the mutation question included,
+is unchanged.
 
-**Explore a GraphQL service: `api schema`** (replaces the shell introspection helpers):
+**Explore a GraphQL service: `api schema`** (replaces the shell introspection
+helpers):
 
 ```bash
 api schema names user --prefix v2/        # query and mutation names

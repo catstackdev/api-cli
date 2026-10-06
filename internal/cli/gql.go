@@ -123,6 +123,7 @@ func (a *app) gqlCmd() *cobra.Command {
 		strict   bool
 		pick     bool
 		yes      bool
+		item     string
 	)
 	cmd := &cobra.Command{
 		Use:   "gql [query|@file|-] [vars-json] [.filter] [-- curl args]",
@@ -138,12 +139,12 @@ func (a *app) gqlCmd() *cobra.Command {
 
 			// no query on a terminal (or --pick): choose it with fzf
 			noQuery := len(before) == 0 || (len(before) == 1 && isFilter(before[0]))
-			if pick || (noQuery && len(pass) == 0 && isTerminal(a.io.In)) {
+			if pick || item != "" || (noQuery && len(pass) == 0 && isTerminal(a.io.In)) {
 				filter := ""
 				if len(before) == 1 && isFilter(before[0]) {
 					filter = before[0]
 				}
-				return a.gqlInteractive(cmd.Context(), o, endpoint, filter, yes)
+				return a.gqlInteractive(cmd.Context(), o, endpoint, filter, yes, item)
 			}
 
 			resolver := a.resolverFor(srcUser, a.destOrigin(a.envName, gqlTarget(a.session().GraphQLURL, endpoint), o))
@@ -184,6 +185,7 @@ func (a *app) gqlCmd() *cobra.Command {
 	f.StringArrayVarP(&vars, "var", "V", nil, "variable key=value or key:=json (repeatable)")
 	f.BoolVar(&pick, "pick", false, "choose the endpoint and the query with fzf, edit the generated query, then run it (default with no query on a terminal)")
 	f.BoolVar(&yes, "yes", false, "with --pick: do not ask before running a mutation")
+	f.StringVar(&item, "item", "", `implies --pick: use this "<query|mutation> <name>" instead of choosing it with fzf (for tv, editors)`)
 	f.BoolVar(&strict, "strict", false, "exit 4 when the response has GraphQL errors")
 	_ = cmd.RegisterFlagCompletionFunc("endpoint", a.endpointCompletion)
 	return cmd
