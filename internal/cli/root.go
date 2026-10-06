@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"cybercat/api/internal/config"
+	"cybercat/api/internal/httpfile"
 	"cybercat/api/internal/secretstore"
 	"cybercat/api/internal/ui"
 
@@ -71,6 +72,7 @@ const (
 	exitHTTP    = 22
 	exitFilter  = 5
 	exitGraphQL = 4
+	// exitAssert (3) is declared in run_assert.go.
 )
 
 type app struct {
@@ -92,7 +94,11 @@ type app struct {
 	reloginTried bool // at most one automatic login per invocation
 
 	captured map[string]*captured // `api run`: responses of requests that already ran
-	running  map[string]bool      // `api run`: requests being run for their values (cycle guard)
+
+	asserts      map[*httpfile.Request][]compiledAssert // `api run`: compiled @assert lines of the requests about to run
+	assertTotal  int                                    // assertions evaluated in this run
+	assertFailed int                                    // ... of which failed
+	running      map[string]bool                        // `api run`: requests being run for their values (cycle guard)
 }
 
 // mode is the colour preference: -M beats -C beats --color / API_COLOR.

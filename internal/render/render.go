@@ -124,6 +124,9 @@ func writeValue(w io.Writer, v any, o Options) error {
 	return emit(w, buf.Bytes(), o)
 }
 
+// Normalize is normalize for other packages that hand decoded JSON to gojq.
+func Normalize(v any) any { return normalize(v) }
+
 // normalize converts json.Number into the int / float64 / *big.Int values
 // gojq expects, so large ids survive the round trip.
 func normalize(v any) any {

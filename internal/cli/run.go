@@ -144,6 +144,10 @@ pass --trust-hosts.`,
 				reqs = []*httpfile.Request{r}
 			}
 
+			if a.asserts, err = compileAsserts(path, reqs); err != nil {
+				return err
+			}
+
 			var firstErr error
 			for _, r := range reqs {
 				if all {
@@ -163,6 +167,9 @@ pass --trust-hosts.`,
 						break
 					}
 				}
+			}
+			if all && a.assertTotal > 0 {
+				a.say(fmt.Sprintf("%d assertion(s): %d passed, %d failed", a.assertTotal, a.assertTotal-a.assertFailed, a.assertFailed))
 			}
 			return firstErr
 		},
@@ -326,6 +333,9 @@ func (a *app) runRequest(cmd *cobra.Command, path string, file *httpfile.File, r
 		filter = "."
 	}
 	if opts.dry {
+		if n := len(a.asserts[r]); n > 0 {
+			a.say(fmt.Sprintf("→ %d assertion(s) not evaluated with --dry", n))
+		}
 		return a.dispatch(cmd.Context(), spec, &opts, filter, "", nil)
 	}
 	resp, err := a.sendRecovering(cmd.Context(), spec, &opts)
@@ -338,6 +348,9 @@ func (a *app) runRequest(cmd *cobra.Command, path string, file *httpfile.File, r
 			return &ExitError{Code: exitHTTP, Msg: fmt.Sprintf("✗ %s: HTTP %d %s (its response is needed by a later request)", r.Name, resp.Status, resp.StatusText)}
 		}
 		return nil
+	}
+	if list := a.asserts[r]; len(list) > 0 {
+		return a.finishAsserted(r, resp, &opts, filter, list)
 	}
 	return a.finish(resp, &opts, filter, nil)
 }

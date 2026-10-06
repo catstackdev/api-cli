@@ -461,6 +461,30 @@ template** (it cannot pull in `{{token}}`), counts as a secret (not sent to
 another host without `--trust-hosts`), is limited to key / `[n]` paths (no jq), may
 not contain line breaks in a URL or header, and is never stored.
 
+*Check the response (CI).* `# @assert <jq>` lines above the request line (any
+number) say what the response must look like. The expression runs on one object,
+`{status, headers, body, ms}` (header names lower-case, a non-JSON body is a
+string), and passes only when its first result is `true`:
+
+```
+### create
+# @assert .status == 201
+# @assert .body.data.id != null
+# @assert .headers["content-type"] | test("json")
+POST /users
+```
+
+Each assertion prints `✓` or `✗ <expr> — <reason> (line N)` on stderr; the body is
+printed as usual. A failure exits **3** (`--all` stops at the first failing
+request, `--keep-going` runs on and ends with a summary). When a request has
+`@assert`, the assertions decide: `# @assert .status == 404` passes for a 404,
+and a request without them still fails with 22. A bad expression is a usage
+error (exit 2) before any request is sent, and `--dry` skips them. Failure
+lines show the expression and a reason (`false`, `null`, `not a boolean
+(string)`, `evaluation error`, `timed out`), never the response, so CI logs do
+not collect tokens. `{{...}}` is not expanded inside assertions. VS Code and
+JetBrains ignore the unknown comment, so the same file works there.
+
 **`api history`, `api again [N]`** list and repeat recent requests. Only the
 method, path and filter are stored (never bodies, headers or tokens; a path with
 a secret-looking query parameter is not recorded), so only GET can be repeated.
@@ -513,8 +537,8 @@ to the binary on each call, so they never leak into other child processes.
 
 ## Exit codes
 
-`0` ok · `1` generic / `diff` found differences · `2` usage · `4` GraphQL errors
-(`--strict`) · `5` bad jq filter · `22` HTTP >= 400 (body is still printed) ·
+`0` ok · `1` generic / `diff` found differences · `2` usage · `3` a `# @assert`
+failed · `4` GraphQL errors (`--strict`) · `5` bad jq filter · `22` HTTP >= 400 (body is still printed) ·
 `28` timeout · `7` connect failed · `6` DNS failed. `api get ... && echo ok`
 works.
 

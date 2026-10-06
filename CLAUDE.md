@@ -53,6 +53,7 @@ internal/secretstore/     credential store: macOS Keychain via `security`; fake 
 internal/session/         API_* env + shell quoting (Quote, Export, Unset)
 internal/schema/          GraphQL introspection: signatures, index lines, embedded preview.jq
 internal/jwt/             unverified exp/iat reader (display and cache expiry only)
+internal/assert/          `# @assert` evaluation (see gotcha 41)
 Makefile                  build / install / check / fuzz / cover / vuln / release / smoke
 test/                     shim.zsh (make e2e), smoke.zsh + smoke_srv.py (make smoke)
 SECURITY.md               rule -> code symbol -> test tables (guarded by a test)
@@ -90,7 +91,8 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
    result to the real `jq` (as `up-scale.sh` does for its schema shaping).
 6. **Exit codes are a contract**: 22 for HTTP >= 400 (body still printed first),
    28/7/6 for transport errors, 5 for a bad filter, 4 for `--strict` GraphQL
-   errors. Scripts rely on `api get ... && ...`.
+   errors, 3 for a failed `# @assert` (which, when present, replaces 22 for
+   that request). Scripts rely on `api get ... && ...`.
 7. **Completion must stay offline and fast.** It runs on every TAB. No network,
    no slow disk scans. History is best-effort; never fail a request over it.
 8. **Name collisions**: the shim defines only `api`. Do not add `cget`/`cpost`
@@ -276,6 +278,15 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     line a `#` would swallow the query); the printed one-liner never carries
     secret-looking variables. `schema.Skeleton` builds the operation (one
     selection level, plain fields only).
+
+41. **`# @assert` is jq from a possibly-foreign file** (`internal/assert`): compiled
+    with NO environment loader (gojq's CLI passes `os.Environ`, the library does
+    not; never add `WithEnvironLoader`), time-limited, compiled for every selected
+    request before the first one is sent, and a failure prints the expression
+    plus a reason, never response data (jq error text quotes values: use the fixed
+    reasons in `Eval`). No `{{...}}` expansion in assertions. Tests are
+    mutation-checked: `TestAssertCannotReadEnvironment`,
+    `TestAssertFailureNeverPrintsResponseData`.
 
 ## Output rules (internal/ui)
 

@@ -6,6 +6,7 @@
 //	### login                                    starts a request (name)
 //	# @name login                                or an annotation
 //	# @filter .data.token                        default jq filter
+//	# @assert .status == 200                     must be true on the response (repeatable)
 //	POST {{host}}/auth/login HTTP/1.1
 //	Content-Type: application/json
 //
@@ -27,6 +28,13 @@ import (
 // Header is one request header.
 type Header struct{ Name, Value string }
 
+// Assert is one `# @assert <jq>` line: an expression over the response that
+// must yield true (see package assert). Line is where it was written.
+type Assert struct {
+	Expr string
+	Line int
+}
+
 // Request is one request block.
 type Request struct {
 	Name     string
@@ -36,6 +44,7 @@ type Request struct {
 	Body     string
 	BodyFile string // body read from this file (relative to the .http file)
 	Filter   string
+	Asserts  []Assert
 	Line     int // 1-based line of the request line
 }
 
@@ -94,7 +103,7 @@ func Parse(data []byte) (*File, error) {
 			case "start":
 				switch {
 				case trimmed == "":
-				case annotationMatch(trimmed, &req):
+				case annotationMatch(trimmed, &req, n):
 				case strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "//"):
 				case varLine.MatchString(trimmed):
 					m := varLine.FindStringSubmatch(trimmed)
@@ -125,6 +134,11 @@ func Parse(data []byte) (*File, error) {
 				body = append(body, l)
 			}
 		}
+		for _, as := range req.Asserts {
+			if as.Expr == "" {
+				return nil, fmt.Errorf("line %d: @assert needs an expression, e.g. # @assert .status == 200", as.Line)
+			}
+		}
 		if req.Method == "" {
 			if req.Name != "" || len(strings.TrimSpace(strings.Join(body, ""))) > 0 {
 				return nil, fmt.Errorf("line %d: request %q has no request line (METHOD URL)", b.firstLine, req.Name)
@@ -146,7 +160,7 @@ func Parse(data []byte) (*File, error) {
 	return f, nil
 }
 
-func annotationMatch(line string, req *Request) bool {
+func annotationMatch(line string, req *Request, lineNo int) bool {
 	m := annotation.FindStringSubmatch(line)
 	if m == nil {
 		return false
@@ -156,6 +170,8 @@ func annotationMatch(line string, req *Request) bool {
 		req.Name = strings.TrimSpace(m[2])
 	case "filter":
 		req.Filter = strings.TrimSpace(m[2])
+	case "assert":
+		req.Asserts = append(req.Asserts, Assert{Expr: strings.TrimSpace(m[2]), Line: lineNo})
 	default:
 		return false
 	}

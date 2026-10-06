@@ -91,6 +91,16 @@ origin), so it lives longer than the shell that logged in: `api logout` removes 
 | The path into a body is keys and `[n]` indexes only, walked in Go (jq could read your environment); line breaks in a captured URL or header value are refused | `walkBody()` `runRequest()` | `TestCapturePathsAreKeysAndIndexesOnly` `TestCapturedValuesCannotInjectHeaders` |
 | Dependencies run once, cycles are refused, a failed dependency stops the request, `--dry` sends nothing | `runDependencies()` | `TestCaptureCyclesAreRefused` `TestFailedDependencyStopsTheRequest` `TestCaptureDryRunSendsNothingAndShowsPlaceholders` |
 
+### `api run` assertions (`# @assert`)
+
+| Rule | Code | Tests |
+| ---- | ---- | ----- |
+| An assertion is jq from a file that may come from a repo: it is compiled without an environment loader, so `env` and `$ENV` are empty | `Compile()` | `TestAssertCannotReadEnvironment` |
+| A failed assertion prints the expression and a reason, never response data: bodies and headers hold tokens and jq's own error text quotes values | `Eval()` `checkAsserts()` | `TestAssertFailureNeverPrintsResponseData` `TestRunAssertOutputNeverContainsResponseData` |
+| An evaluation has a time limit, so `last(range(infinite))` cannot hang a CI job | `Eval()` | `TestEvalHasATimeout` |
+| Assertions are compiled before the first request is sent, so a typo is a usage error and never a half-finished run; there is no `{{...}}` expansion inside them | `compileAsserts()` | `TestRunAssertSyntaxErrorIsCaughtBeforeAnyRequest` |
+| With `@assert`, the assertions decide the exit code (3); the HTTP-status exit (22) applies only to requests without them | `finishAsserted()` | `TestRunAssertDecidesInsteadOfTheHTTPStatus` |
+
 ### Cache files written by `api schema sync`
 
 | Rule | Code | Tests |
