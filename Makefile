@@ -7,7 +7,7 @@ LDFLAGS  := -s -w -X cybercat/api/internal/cli.Version=$(VERSION) -X cybercat/ap
 # CGO off: a static binary that cross-compiles cleanly (e.g. for Termux).
 export CGO_ENABLED := 0
 
-.PHONY: build install test vet fmt check lint e2e e2e-keychain e2e-secretservice smoke fuzz vuln cover release clean
+.PHONY: build install install-skill test vet fmt check lint e2e e2e-keychain e2e-secretservice smoke fuzz vuln cover release clean
 
 build:
 	go build -ldflags '$(LDFLAGS)' -o $(BIN) ./cmd/api
@@ -89,6 +89,16 @@ release:
 		GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags '$(LDFLAGS)' -o $$out ./cmd/api || exit 1; \
 	done
 	cd dist && shasum -a 256 api-* > SHA256SUMS && cat SHA256SUMS
+
+# The Claude Code skill that teaches an agent to drive `api`. User level by default;
+# for one project only: make install-skill SKILL_DIR=/path/to/project/.claude/skills/api-cli
+# Replace the file, never overwrite it in place (same rule as the binary).
+SKILL_DIR ?= $(HOME)/.claude/skills/api-cli
+install-skill:
+	mkdir -p $(SKILL_DIR)
+	cp skills/api-cli.md $(SKILL_DIR)/SKILL.md.new
+	mv -f $(SKILL_DIR)/SKILL.md.new $(SKILL_DIR)/SKILL.md
+	@echo "✓ $(SKILL_DIR)/SKILL.md"
 
 # Whole tool end to end: real binary + shim, two stub servers, throwaway Keychain items
 # (api-smoke-*, token.smoke-*; removed afterwards). Needs python3, jq, localhost ports.

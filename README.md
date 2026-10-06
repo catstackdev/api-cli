@@ -28,6 +28,28 @@ avoids this by replacing the file (copy to `api.new`, then `mv`); if you copy by
 Requires Go 1.24+. The binary is static (`CGO_ENABLED=0`), so it cross-compiles
 for Termux (`GOOS=linux GOARCH=arm64 make build`).
 
+## Use it from Claude Code (agent skill)
+
+`skills/api-cli.md` is a [Claude Code skill](https://docs.claude.com/en/docs/claude-code/skills)
+that teaches an agent to drive `api`: how to keep a session across its one-shot
+shells, never print a token, check a request with `--dry` first, read `.http`
+checks, and what each exit code means. It needs `api` on your `PATH` (`make
+install`, above).
+
+```zsh
+make install-skill                  # for you: ~/.claude/skills/api-cli/SKILL.md
+make install-skill SKILL_DIR=/path/to/project/.claude/skills/api-cli   # one project only
+```
+
+Without `make`: copy `skills/api-cli.md` to `<skills dir>/api-cli/SKILL.md`
+(`~/.claude/skills` for every project, `<project>/.claude/skills` for one). Start a
+new Claude Code session if `/api-cli` is not listed yet. After updating this repo,
+run the same command again; to remove it, delete the `api-cli` directory.
+
+The skill only describes the commands: it grants no access. Claude Code still asks
+before running them, and the tool's own rules (a token goes to the active server
+only, no secrets in config) apply unchanged.
+
 ## Quick start
 
 ```zsh

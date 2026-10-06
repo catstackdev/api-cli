@@ -60,6 +60,7 @@ internal/openapi/         OpenAPI JSON -> sanitised method+path index (pluggable
 Makefile                  build / install / check / fuzz / cover / vuln / release / smoke
 test/                     shim.zsh (make e2e), smoke.zsh + smoke_srv.py (make smoke)
 SECURITY.md               rule -> code symbol -> test tables (guarded by a test)
+skills/api-cli.md         Claude Code skill for USERS of the tool (make install-skill)
 ../../src/api.sh          zsh shim (top-level src/, auto-loaded by init.sh)
 ```
 
@@ -376,7 +377,10 @@ make smoke                 # whole tool end to end (36 checks), see below
   code signature and the kernel SIGKILLs the new one at launch (exit 137, no output,
   while the same bytes run fine from a new inode). If `api` "stopped working" after an
   install, check `~/.local/bin/api --version; echo $?` before suspecting the code.
-- Docs: update `README.md` when a flag or command changes.
+- Docs: update `README.md` when a flag or command changes, and
+  `skills/api-cli.md` when it changes what an agent should do (exit codes, the
+  session rules, a command it names). That file is shipped to users: no personal
+  paths in it.
 
 ## Conventions
 
