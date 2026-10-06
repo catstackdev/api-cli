@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,23 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+// shimContract is the number of the shell-shim contract this binary expects:
+// which commands the shim must eval (the `mutating` case in src/api.sh). The
+// shim exports it as API_SHIM. Raise it, and the value in src/api.sh, together
+// whenever a command that changes the parent shell is added.
+const shimContract = "1"
+
+// shimNewer reports whether a shim marker is a higher contract than ours. A
+// marker that is not a number counts as older: it predates the numbering.
+func shimNewer(marker string) bool {
+	m, err := strconv.Atoi(marker)
+	if err != nil {
+		return false
+	}
+	cur, _ := strconv.Atoi(shimContract)
+	return m > cur
+}
 
 type level int
 
@@ -159,10 +177,15 @@ func (a *app) doctorChecks() []check {
 	add("binary", lvlOK, "%s: %s", VersionString(), exe)
 
 	// shell shim
-	if a.getenv("API_SHIM") == "1" {
-		add("shell shim", lvlOK, "loaded: login, env load/use/clear can change your shell")
-	} else {
+	switch marker := a.getenv("API_SHIM"); {
+	case marker == "":
 		add("shell shim", lvlWarn, "not detected: run `exec zsh`, or those commands cannot change your shell")
+	case marker == shimContract:
+		add("shell shim", lvlOK, "loaded: login, env load/use/clear can change your shell")
+	case shimNewer(marker):
+		add("shell shim", lvlWarn, "contract %s is newer than this binary (%s): rebuild or reinstall the binary (make install)", marker, shimContract)
+	default:
+		add("shell shim", lvlWarn, "contract %q is older than this binary (%s): its list of shell-changing commands may be stale, run `exec zsh`", marker, shimContract)
 	}
 
 	// completion cache

@@ -64,6 +64,26 @@ func TestDoctor(t *testing.T) {
 	}
 }
 
+// The shim marker carries the contract number it implements, so a shim loaded
+// before the binary learned a new shell-changing command is reported, not
+// silently trusted.
+func TestDoctorShimContract(t *testing.T) {
+	for _, c := range []struct {
+		marker, want, notWant string
+	}{
+		{shimContract, "loaded", "differs"},
+		{"0", "older than this binary", "loaded:"},
+		{"99", "newer than this binary", "loaded:"},
+		{"junk", "older than this binary", "loaded:"},
+	} {
+		t.Setenv("API_SHIM", c.marker)
+		r := run(t, "", "doctor")
+		if !strings.Contains(r.out, c.want) || strings.Contains(r.out, c.notWant) {
+			t.Errorf("API_SHIM=%q: want %q and not %q:\n%s", c.marker, c.want, c.notWant, r.out)
+		}
+	}
+}
+
 func TestDoctorOnline(t *testing.T) {
 	srv, _ := envServer(t)
 	t.Setenv("API_BASE_URL", srv.URL)
