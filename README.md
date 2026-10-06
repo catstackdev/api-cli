@@ -517,7 +517,8 @@ GET /users/{{create.response.body.data.id}}
 - Keep your own files in `.api/requests/` so `api run <name>` finds them, or let
   `api openapi` write one for you from your API's spec.
 
-**Try them for real.** `examples/server.py` is a tiny in-memory API (Python 3, no
+**Try them for real** (the [examples README](examples/README.md) has the full recipe).
+`examples/server.py` is a tiny in-memory API (Python 3, no
 installs) with the endpoints the examples call, and `examples/.api.toml` points an
 env called `local` at it. Run `api` from inside `examples/` and it finds that config:
 
