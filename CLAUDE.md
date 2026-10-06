@@ -35,6 +35,7 @@ internal/cli/             cobra commands; one file per concern
   run.go run_capture.go   .http runner and {{name.response.*}} capture
   schema.go schema_sync.go  introspection commands; `schema sync` (cache writer)
   schema_pick.go            fzf browser, editor
+  openapi.go                `openapi sync|list`, per-server index cache, verb path completion
 internal/ui/              ALL terminal presentation: colour decision, styled
                           messages, status/header lines, pager, tables
 internal/httpc/           Spec -> request / curl args / client / trace
@@ -55,6 +56,7 @@ internal/session/         API_* env + shell quoting (Quote, Export, Unset)
 internal/schema/          GraphQL introspection: signatures, index lines, embedded preview.jq
 internal/jwt/             unverified exp/iat reader (display and cache expiry only)
 internal/assert/          `# @assert` evaluation (see gotcha 41)
+internal/openapi/         OpenAPI JSON -> sanitised method+path index (pluggable Decoder; see gotcha 42)
 Makefile                  build / install / check / fuzz / cover / vuln / release / smoke
 test/                     shim.zsh (make e2e), smoke.zsh + smoke_srv.py (make smoke)
 SECURITY.md               rule -> code symbol -> test tables (guarded by a test)
@@ -294,6 +296,22 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     mutation-checked: `TestAssertCannotReadEnvironment`,
     `TestAssertFailureNeverPrintsResponseData`.
 
+42. **An OpenAPI spec is server data** (`internal/openapi`): `Parse` keeps only an
+    index of sanitised strings (no control characters, bounded size/count), never
+    the raw document; the cache file is keyed by the base URL's ORIGIN, never by
+    the env name (gotcha 27), owner-only, and completion only reads it (offline,
+    gotcha 7). Only JSON is decoded; YAML is one more `Decoder` in `decoders`
+    (it needs a YAML library: the module cache has `gopkg.in/yaml.v3`, but
+    `go.mod` stays dependency-light on purpose). Tests are mutation-checked:
+    `TestHostileSpecIsSanitised`, `TestLimits`, the per-server completion test.
+    `openapi pick` is the `api gql` flow for REST (`openapi.go`): a `.http` file in your
+    editor, unsaved = cancel, and the confirmation for anything but GET/HEAD/OPTIONS
+    is decided on the SAVED request, never on what was picked (gotcha 40). The
+    spec's summary is written as `# openapi: <text>` so it can never become an
+    annotation. `env.<name>.openapi` (where the spec lives) is a validated PATH, never a URL
+    (`config.ValidateOpenAPIPath`); an explicit argument beats it, it beats the
+    probes, and a configured path that 404s is an error, not a reason to probe.
+
 ## Output rules (internal/ui)
 
 - Commands decide WHAT to print; `internal/ui` decides how it looks. Never write
@@ -353,6 +371,11 @@ make smoke                 # whole tool end to end (36 checks), see below
   the variables (this fooled a repro once). Also `status` is read-only in zsh.
 - Backticks inside Go raw strings (the config templates in `edit.go`) break the
   build.
+- **Install by replacing, never overwriting** (`make install`: copy to `api.new`, then
+  `mv`): on Apple silicon `cp` over a binary that already ran leaves a stale cached
+  code signature and the kernel SIGKILLs the new one at launch (exit 137, no output,
+  while the same bytes run fine from a new inode). If `api` "stopped working" after an
+  install, check `~/.local/bin/api --version; echo $?` before suspecting the code.
 - Docs: update `README.md` when a flag or command changes.
 
 ## Conventions

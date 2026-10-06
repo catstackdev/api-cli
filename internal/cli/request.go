@@ -164,7 +164,7 @@ func (a *app) verbCmd(name, method string, withBody bool, short string, aliases 
 			}
 			return a.dispatch(cmd.Context(), spec, o, filter, target, pass)
 		},
-		ValidArgsFunction: pathCompletion,
+		ValidArgsFunction: a.verbPathCompletion(method),
 	}
 	a.bindFlags(o, cmd, withBody)
 	return cmd

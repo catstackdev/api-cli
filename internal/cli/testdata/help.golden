@@ -19,6 +19,7 @@ Available Commands:
   json        Build a JSON object from key=value / key:=json arguments
   login       Log in (REST or GraphQL) and store the token as API_TOKEN
   logout      Forget this shell's token and the cached token of the env
+  openapi     Index an OpenAPI/Swagger JSON spec for completion (sync, list)
   patch       PATCH with a JSON body
   post        POST a JSON body
   put         PUT a JSON body
@@ -918,6 +919,187 @@ Usage:
 Flags:
       --all    forget the cached token of every env in the config
       --emit   print shell statements for eval
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api openapi =====
+Reads an OpenAPI 3 or Swagger 2 document (JSON) from the server and keeps a small
+index of its method + path pairs, so "api get <TAB>" completes the endpoints the API
+really has. Completion stays offline: it reads that one local file.
+
+  api openapi sync               # the env's openapi path, else tries /openapi.json,
+                                 # /swagger.json, /v3/api-docs, /api-docs, /api-json, /docs-json
+  api openapi sync /docs/spec.json
+  api openapi sync --file ./openapi.json
+  api openapi list users
+  api openapi                    # pick an operation, edit the request, save and run it (like api gql)
+
+Usage:
+  api openapi [flags]
+  api openapi [command]
+
+Available Commands:
+  list        List the cached operations (filter matches path, summary or operationId)
+  pick        Pick an operation with fzf, edit the request, save and run it
+  show        Show one cached operation (summary and body skeleton): the picker's preview
+  sync        Fetch the spec and cache its index for the active server
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+      --no-save                    do not keep the request under .api/requests/
+  -o, --output string              write the body to a file
+      --print                      print the api command for the picked operation: no editor, nothing sent
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+      --yes                        do not ask before sending a request that changes data
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api openapi [command] --help" for more information about a command.
+
+===== api openapi list =====
+List the cached operations (filter matches path, summary or operationId)
+
+Usage:
+  api openapi list [filter] [flags]
+
+Flags:
+      --method string   only this HTTP method
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api openapi pick =====
+Pick an operation with fzf (the preview shows its summary and body skeleton), edit
+the generated request in your editor, save to run it. It is the OpenAPI twin of
+"api gql": quit the editor without saving to cancel, and anything that changes data
+asks first ("✱ POST /users changes data on <server>: run it? [y/N]"). What you SAVED
+decides whether to ask, not what you picked.
+
+The request is a .http file: the body skeleton comes from the spec's request schema,
+{placeholders} in the path must be filled in, and you may add # @assert lines. After
+you confirm it is kept as .api/requests/<name>.http (never overwriting an earlier one),
+so "api run <name>" repeats it. --no-save keeps nothing; --print only prints the
+api command for the pick. Needs a synced index (api openapi sync).
+
+Usage:
+  api openapi pick [text] [flags]
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+      --no-save                    do not keep the request under .api/requests/
+  -o, --output string              write the body to a file
+      --print                      print the api command for the picked operation: no editor, nothing sent
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+      --yes                        do not ask before sending a request that changes data
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api openapi show =====
+Show one cached operation (summary and body skeleton): the picker's preview
+
+Usage:
+  api openapi show <METHOD> <path> [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api openapi sync =====
+Fetches the spec with the normal request pipeline (the session token goes to the
+active base URL only, never to another host) and stores an index of method, path
+and summary under ~/.cache/api/openapi/, owner-only. The raw document is not
+kept. Only JSON is read; for a YAML spec fetch its JSON form or convert it with
+yq -o=json and use --file.
+
+Where the spec lives: the argument, else the selected env's "openapi" (a path in
+.api.toml, e.g. api config set env.local.openapi /docs/spec.json), else the
+usual locations are tried in turn.
+
+Usage:
+  api openapi sync [path|url] [flags]
+
+Flags:
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --file string                read the spec from a local JSON file instead of the server
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -Q, --query stringArray          query parameter key=value (repeatable)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)

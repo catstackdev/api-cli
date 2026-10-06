@@ -43,6 +43,12 @@ func schemaLabelOK(name string) bool { _, ok := schemaLabel(name); return ok }
 // it): quitting without saving is how you cancel. A non-zero editor exit (vim's
 // :cq) is an error.
 func (a *app) editTemp(name, text string) (edited string, changed bool, err error) {
+	return a.editTempExt(name, ".graphql", text)
+}
+
+// editTempExt is editTemp with the file extension of your choice (editors pick
+// their syntax highlighting from it).
+func (a *app) editTempExt(name, ext, text string) (edited string, changed bool, err error) {
 	argv, err := a.editorCommand()
 	if err != nil {
 		return "", false, err
@@ -52,7 +58,7 @@ func (a *app) editTemp(name, text string) (edited string, changed bool, err erro
 		return "", false, err
 	}
 	defer os.RemoveAll(dir)
-	file := filepath.Join(dir, strings.NewReplacer("/", "-", " ", "-").Replace(name)+".graphql")
+	file := filepath.Join(dir, strings.NewReplacer("/", "-", " ", "-").Replace(name)+ext)
 	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
 		return "", false, err
 	}

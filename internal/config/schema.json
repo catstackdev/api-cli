@@ -52,6 +52,7 @@
       "properties": {
         "url": { "type": "string", "format": "uri", "description": "Base URL of this environment." },
         "graphql": { "type": "string", "format": "uri", "description": "GraphQL base URL." },
+        "openapi": { "type": "string", "pattern": "^/[A-Za-z0-9_./~%+@:,=?&-]*$", "maxLength": 512, "description": "Path of this env's OpenAPI JSON document on its server (not a URL), for `api openapi sync`." },
         "endpoint_prefix": { "type": "string", "pattern": "^[A-Za-z0-9_./-]*$", "description": "Put in front of a bare endpoint name by `api schema` (v2/ makes user mean v2/user)." },
         "endpoints": { "type": "array", "items": { "type": "string" }, "description": "GraphQL endpoints for completion and `api schema sync`." },
         "token_env": { "type": "string", "pattern": "^API_TOKEN_[A-Z0-9_]+$", "description": "Global config only. The variable that holds this env's token." },

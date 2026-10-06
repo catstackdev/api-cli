@@ -49,9 +49,13 @@ type Env struct {
 	Endpoints []string `toml:"endpoints,omitempty"`
 	// EndpointPrefix is put in front of a bare endpoint name by `api schema`
 	// ("v2/" makes "user" mean v2/user).
-	EndpointPrefix string            `toml:"endpoint_prefix,omitempty"`
-	TokenEnv       string            `toml:"token_env,omitempty"`
-	Headers        map[string]string `toml:"headers,omitempty"`
+	EndpointPrefix string `toml:"endpoint_prefix,omitempty"`
+	// OpenAPI is the PATH of this env's OpenAPI JSON document on its server, for
+	// `api openapi sync` (when it is not at one of the usual places). A path, never
+	// a URL: see ValidateOpenAPIPath.
+	OpenAPI  string            `toml:"openapi,omitempty"`
+	TokenEnv string            `toml:"token_env,omitempty"`
+	Headers  map[string]string `toml:"headers,omitempty"`
 	// Login describes how to log in to this env without typing anything. Like
 	// token_env it is honoured only from the GLOBAL file: it names where your
 	// credentials come from and where they are sent.
@@ -134,6 +138,22 @@ func ValidateEndpointPrefix(s string) error {
 		return nil
 	}
 	return fmt.Errorf("endpoint_prefix %q must be a relative path prefix like v2/", s)
+}
+
+var openapiPath = regexp.MustCompile(`^/[A-Za-z0-9_./~%+@:,=?&-]*$`)
+
+// ValidateOpenAPIPath accepts "" or an absolute PATH on the env's own server,
+// like /openapi.json or /v3/api-docs/public?group=a. It must not be a URL or
+// protocol-relative (//host/x): a config file can come from a cloned repo and
+// must not choose which host `api openapi sync` fetches from.
+func ValidateOpenAPIPath(s string) error {
+	if s == "" {
+		return nil
+	}
+	if len(s) <= 512 && openapiPath.MatchString(s) && !strings.HasPrefix(s, "//") && !strings.Contains(s, "..") {
+		return nil
+	}
+	return fmt.Errorf("openapi %q must be a path on the server like /openapi.json (not a URL)", s)
 }
 
 var varName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -262,6 +282,9 @@ func ParseText(data []byte, path string) (Config, error) {
 			return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
 		}
 		if err := ValidateEndpointPrefix(e.EndpointPrefix); err != nil {
+			return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
+		}
+		if err := ValidateOpenAPIPath(e.OpenAPI); err != nil {
 			return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
 		}
 		if err := ValidateLogin(e.Login); err != nil {
@@ -413,6 +436,9 @@ func Merge(base, over Config) Config {
 		}
 		if v.EndpointPrefix != "" {
 			e.EndpointPrefix = v.EndpointPrefix
+		}
+		if v.OpenAPI != "" {
+			e.OpenAPI = v.OpenAPI
 		}
 		if v.TokenEnv != "" {
 			e.TokenEnv = v.TokenEnv

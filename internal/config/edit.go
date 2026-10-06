@@ -28,7 +28,7 @@ func IsSecretKey(key string) bool {
 var SettableKeys = []string{
 	"default_env",
 	"defaults.timeout", "defaults.connect_timeout", "defaults.retry", "defaults.color", "defaults.summary", "defaults.token_cache", "defaults.auto_login", "defaults.editor",
-	"env.<name>.url", "env.<name>.graphql", "env.<name>.endpoints", "env.<name>.endpoint_prefix", "env.<name>.token_env", "env.<name>.headers.<Header>",
+	"env.<name>.url", "env.<name>.graphql", "env.<name>.endpoints", "env.<name>.endpoint_prefix", "env.<name>.openapi", "env.<name>.token_env", "env.<name>.headers.<Header>",
 	"vars.base_url", "vars.graphql_url", "vars.env_suffix",
 	"env.<name>.login.path", "env.<name>.login.gql", "env.<name>.login.endpoint", "env.<name>.login.token_path", "env.<name>.login.vars.<name>",
 	"alias.<name>",
@@ -76,7 +76,7 @@ func setLogin(c *Config, name, field, value, key string) error {
 	default:
 		return fmt.Errorf("unknown key %q (known: login.path, login.gql, login.endpoint, login.token_path, login.vars.<name>)", key)
 	}
-	c.Env[name] = Env{URL: e.URL, GraphQL: e.GraphQL, Endpoints: e.Endpoints, EndpointPrefix: e.EndpointPrefix, TokenEnv: e.TokenEnv, Headers: e.Headers, Login: l}
+	c.Env[name] = Env{URL: e.URL, GraphQL: e.GraphQL, Endpoints: e.Endpoints, EndpointPrefix: e.EndpointPrefix, OpenAPI: e.OpenAPI, TokenEnv: e.TokenEnv, Headers: e.Headers, Login: l}
 	return nil
 }
 
@@ -139,6 +139,11 @@ func Set(c *Config, key, value string) error {
 				return err
 			}
 			e.EndpointPrefix = value
+		case field == "openapi":
+			if err := ValidateOpenAPIPath(value); err != nil {
+				return err
+			}
+			e.OpenAPI = value
 		case field == "endpoints":
 			e.Endpoints = nil
 			for _, x := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' }) {
@@ -270,6 +275,8 @@ func Get(c Config, key string) (string, bool) {
 			return e.TokenEnv, e.TokenEnv != ""
 		case "endpoint_prefix":
 			return e.EndpointPrefix, e.EndpointPrefix != ""
+		case "openapi":
+			return e.OpenAPI, e.OpenAPI != ""
 		case "endpoints":
 			return strings.Join(e.Endpoints, ","), len(e.Endpoints) > 0
 		default:
@@ -353,6 +360,7 @@ func Render(scope Scope, baseURL, graphqlURL string) string {
 # graphql = "http://localhost:3000/graphql"
 # endpoints = ["user", "auth"]          # completions for api gql -e, and api schema sync
 # endpoint_prefix = "v2/"               # "user" means v2/user for api schema
+# openapi = "/openapi.json"           # where its OpenAPI JSON lives (a path); api openapi sync uses it
 # headers = { "X-Tenant" = "local" }    # sent with every request to this env
 
 # ── login for this project, no typing: api login --env local ───────────────
@@ -404,6 +412,7 @@ const globalTemplate = `# api global config (~/.config/api/config.toml): what is
 # graphql = "https://api.dev.example.com/graphql"
 # endpoints = ["user", "auth"]          # completions for api gql -e, and api schema sync
 # endpoint_prefix = "v2/"               # "user" means v2/user for api schema
+# openapi = "/openapi.json"           # where its OpenAPI JSON lives (a path); api openapi sync uses it
 # token_env = "API_TOKEN_DEV"           # NAME (API_TOKEN_*) of the variable with the token; honoured HERE only
 # headers = { "X-Tenant" = "dev" }      # sent with every request to this env
 

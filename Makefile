@@ -12,9 +12,13 @@ export CGO_ENABLED := 0
 build:
 	go build -ldflags '$(LDFLAGS)' -o $(BIN) ./cmd/api
 
+# Replace the file (a new inode), never overwrite it in place: on Apple silicon a
+# `cp` over a binary that already ran leaves a stale cached code signature and the
+# kernel kills the new bytes at launch (exit 137, no message).
 install: build
 	mkdir -p $(dir $(INSTALL))
-	cp $(BIN) $(INSTALL)
+	cp $(BIN) $(INSTALL).new
+	mv -f $(INSTALL).new $(INSTALL)
 
 test:
 	go test -count=1 -race ./...

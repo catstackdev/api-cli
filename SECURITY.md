@@ -109,6 +109,26 @@ origin), so it lives longer than the shell that logged in: `api logout` removes 
 | Endpoint names (which a project config can supply) become file names only if they are plain labels (a URL is not one); nothing is written outside the cache dir, and `--dry` writes nothing | `schemaLabel()` `ValidLabel()` | `TestSchemaSyncNeverWritesOutsideTheCache` `TestSchemaSyncRefusesUrlEndpointsAsCacheLabels` `TestSchemaDryRunSendsAndWritesNothing` |
 | Introspection requests follow the normal destination rules: your token never goes to another server | `introspect()` | `TestSchemaNeverSendsYourTokenToAnotherServer` |
 
+### `api openapi sync` (a spec is data from a server)
+
+| Rule | Code | Tests |
+| ---- | ---- | ----- |
+| The spec is reduced to an index of sanitised strings: paths with control characters (a terminal-clear sequence in a path) or spaces are dropped, summaries are flattened and truncated, an operationId must be a plain identifier; the raw document is never kept | `Parse()` `safePath()` `clean()` | `TestHostileSpecIsSanitised` |
+| Size and count are bounded, so a hostile server cannot make a sync or every TAB expensive | `Parse()` | `TestLimits` |
+| `env.<name>.openapi` is a PATH on the env's own server, never a URL or `//host`: a config file from a cloned repo cannot choose which host `sync` fetches from | `ValidateOpenAPIPath()` | `TestValidateOpenAPIPath` `TestReadRejectsABadOpenAPIPath` |
+| The index is keyed by the server's origin, never by the env name (a name is attacker-controllable): a spec is offered only for the server it came from | `openapiCacheFile()` | `TestOpenAPICompletionIsOfflinePerMethodAndPerServer` |
+| The fetch follows the normal destination rules (your token goes to the active base URL only), `--dry` sends and writes nothing, the cache is owner-only | `openapiSyncCmd()` | `TestOpenAPISyncSendsNoTokenToAnotherHost` `TestOpenAPISyncDryRunSendsAndWritesNothing` `TestOpenAPISyncProbesCommonPathsAndCaches` |
+
+### `api openapi pick` (pick, edit, save, run)
+
+| Rule | Code | Tests |
+| ---- | ---- | ----- |
+| Anything that is not a GET/HEAD/OPTIONS asks before it is sent, decided on the request that was SAVED (you may have edited a GET into a DELETE), never on what was picked; quitting the editor without saving cancels | `openapiEditAndRun()` `readOnlyMethod()` | `TestOpenAPIPickAsksBeforeAnythingThatChangesData` `TestOpenAPIPickDecidesByWhatWasSavedNotWhatWasPicked` `TestOpenAPIPickEditorGetsTheSkeletonAndUnsavedMeansCancel` |
+| The generated file is built from server data: a summary goes in as `# openapi: <text>` (one flattened line) so it cannot start an annotation (`# @assert`, `# @filter`), a heading or a request | `pickFile()` | `TestOpenAPIPickGeneratedFileCannotCarryAnInjectedRequest` |
+| An unfilled `{path}` parameter is refused before anything is sent or saved; the request then runs through the normal `.http` pipeline (token to the active base only, foreign hosts need `--trust-hosts`) | `openapiEditAndRun()` `runRequest()` | `TestOpenAPIPickRefusesALeftoverPathParameter` |
+| A saved request never overwrites an earlier file | `savePicked()` | `TestOpenAPIPickNoSaveAndUniqueFileNames` |
+| The body skeleton comes from the spec's request schema and is bounded and sanitised: keys must be plain identifiers, enum values printable, properties/depth/bytes capped (also for the whole index), cycles end | `forOperation()` | `TestBodySkeletonIsBoundedAndSanitised` |
+
 ### What gets printed or stored
 
 | Rule | Code | Tests |

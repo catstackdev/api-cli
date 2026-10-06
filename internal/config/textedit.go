@@ -185,6 +185,8 @@ func plan(key string, old, want Config) (edits []edit, drop *inlineDrop, err err
 			return str(table, "token_env", e.TokenEnv), nil, nil
 		case "endpoint_prefix":
 			return str(table, "endpoint_prefix", e.EndpointPrefix), nil, nil
+		case "openapi":
+			return str(table, "openapi", e.OpenAPI), nil, nil
 		case "endpoints":
 			return []edit{{table, "endpoints", tomlArray(e.Endpoints)}}, nil, nil
 		}

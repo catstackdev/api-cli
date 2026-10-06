@@ -19,6 +19,12 @@ api doctor          # checks the whole setup (--json for scripts and CI)
 ```
 
 `make build` alone is enough: the shim also finds `bin/api` in this directory.
+
+If `api` ever dies silently right after an install (exit 137, no message, while
+`bin/api` still runs): on Apple silicon, copying a new binary **over** one that
+already ran leaves a stale code signature and the OS kills it. `make install`
+avoids this by replacing the file (copy to `api.new`, then `mv`); if you copy by hand,
+`rm` the old one first.
 Requires Go 1.24+. The binary is static (`CGO_ENABLED=0`), so it cross-compiles
 for Termux (`GOOS=linux GOARCH=arm64 make build`).
 
@@ -58,6 +64,7 @@ api diff --envs dev,thien /users/1 .data
 | `config path\|show\|get\|set\|init\|edit`        | global + project config                           |
 | `diff --envs a,b <path>`                         | same request to two envs, structural JSON diff    |
 | `run <file\|name> [request]`                     | saved requests from `.http` files                 |
+| `openapi [sync\|list\|pick\|show]`                | index an OpenAPI JSON spec; pick, edit, save, run |
 | `history`, `again [N]`                           | recent requests; repeat a GET                     |
 | `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)              |
 | `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                 |
@@ -355,6 +362,7 @@ color = "auto"
 url = "https://api.dev.example.com"
 graphql = "https://api.dev.example.com/graphql"
 endpoints = ["user", "auth"]        # completions for gql -e
+openapi = "/openapi.json"           # where its OpenAPI JSON lives (a path); `api openapi sync` uses it
 token_env = "API_TOKEN_DEV"         # NAME (API_TOKEN_*) of the variable with the token
 headers = { "X-Tenant" = "dev" }
 
@@ -499,6 +507,56 @@ a secret-looking query parameter is not recorded), so only GET can be repeated.
 devtools: credential headers, cookies, secret-looking JSON fields and query
 parameters are masked unless `--har-secrets`.
 
+**`api openapi sync|list`** teaches completion the endpoints your API really has.
+`sync` fetches an OpenAPI 3 / Swagger 2 document and keeps a small index of its
+method + path pairs (and summaries) for the **active server**:
+
+```bash
+api openapi sync                    # the env's `openapi` path, else tries /openapi.json, /swagger.json,
+                                    # /v3/api-docs, /api-docs, /api-json, /docs-json
+api openapi sync /docs/spec.json    # an explicit path (no probing); a full URL works too
+api openapi sync --file ./spec.json # a local file
+api openapi list users --method POST
+api openapi                         # fzf picker: edit the request, save to run, confirm if it changes data
+api get /us<TAB>                    # /users  List users   /users/{id}  Get a user
+```
+
+**The picker (like `api gql`).** `api openapi` (or `api openapi pick [text]`) opens fzf
+over `METHOD  PATH  summary` with a preview of the summary and the body skeleton. Pick
+one and your editor opens a **`.http` request**: the method and path, `Accept`, and for
+POST/PUT/PATCH a JSON body skeleton built from the spec's request schema (required
+fields first). Fill in any `{placeholder}` in the path, add `# @assert` lines if you
+like, and **save to run; quit without saving to cancel**. Anything that changes data
+asks first, as `api gql` does:
+
+```
+✱ POST /users changes data on http://localhost:3000: run it? [y/N]
+```
+
+What you **saved** decides whether to ask (a picked GET you edited into a DELETE asks;
+a GET never does). After you confirm, the request is kept as `.api/requests/<name>.http`
+(never overwriting an earlier one: `-2`, `-3`, ...), so `api run <name>` repeats it
+later. `--no-save` keeps nothing, `--yes` skips the question, `--dry` shows the curl,
+and `--print` only prints the command (`api post /users '{}'`) with no editor. It
+needs fzf and a synced index; `api openapi list` works without fzf.
+
+`sync` needs no configuration: it only needs a base URL (`api env load`, `--env` or
+`--base`) and tries the usual locations. If your spec lives somewhere else, say so
+once in the config and `sync` stops guessing: `api config set env.local.openapi
+/docs/spec.json` (a **path** on that env's server, never a URL), then
+`api --env local openapi sync` (or after `api env use local` / `api login --env local`).
+`api config init` writes the commented example in both templates.
+
+The document is fetched with the normal request pipeline (your token goes to the
+active base URL only). The raw spec is **not** kept: only an index of sanitised
+strings (control characters dropped, bounded sizes and counts) is written to
+`~/.cache/api/openapi/<scheme>_<host>.json` (owner-only; `$API_OPENAPI_CACHE_DIR`
+overrides), one file per server, so a spec is only ever offered for the server it
+came from. Completion reads that one file: it stays offline. **Only JSON is read**;
+for a YAML spec fetch its JSON form, or convert it (`yq -o=json spec.yaml > spec.json`)
+and use `--file`. Other formats can be added as one more decoder in
+`internal/openapi`.
+
 ## Output
 
 - **Table:** `--table` (or `-t`) prints an array of objects as a table (`id`,
@@ -525,6 +583,7 @@ parameters are masked unless `--har-secrets`.
 | `API_COLOR`, `NO_COLOR`, `JQ_COLORS`    | colour mode; disable; jq-style palette              |
 | `API_PAGER`                             | pager command (default `less -FRX`; empty disables) |
 | `API_GQL_ENDPOINTS`                     | extra `gql -e` completions (space/comma)            |
+| `API_OPENAPI_CACHE_DIR`                 | where `openapi sync` keeps its indexes              |
 
 These are plain (unexported) shell variables, as before. The shim forwards them
 to the binary on each call, so they never leak into other child processes.
@@ -551,7 +610,9 @@ works.
 
 `api <TAB>` completes commands, flags and:
 
-- the first argument: recently requested paths (`~/.local/state/api/history`)
+- the first argument of `get`/`post`/...: the operations of the synced OpenAPI spec for
+  that method (with their summaries), then recently requested paths
+  (`~/.local/state/api/history`)
 - `--env`, `env use`, `diff --envs`: the envs in config; `config get|set`: keys
 - `env load`: the `.env.<suffix>` files of the project
 - `run`: saved files, then the requests inside the chosen file

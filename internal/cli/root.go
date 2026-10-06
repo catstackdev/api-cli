@@ -293,6 +293,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.loginCmd(),
 		a.logoutCmd(),
 		a.schemaCmd(),
+		a.openapiCmd(),
 		a.envCmd(),
 		a.configCmd(),
 		a.secretCmd(),
