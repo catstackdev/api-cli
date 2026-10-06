@@ -1,0 +1,20 @@
+{
+  "enabledPlugins": {
+    "gopls-lsp@claude-plugins-official": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path // empty' | { read -r f; case \"$f\" in *.go) ;; *) exit 0;; esac; out=$( { gofmt -l \"$f\"; (cd \"$(dirname \"$f\")\" && go vet . 2>&1); } 2>&1 ); [ -z \"$out\" ] || jq -n --arg m \"$out\" '{decision:\"block\",reason:(\"gofmt -l / go vet reported:\\n\"+$m)}'; }",
+            "timeout": 90,
+            "statusMessage": "gofmt + go vet"
+          }
+        ]
+      }
+    ]
+  }
+}

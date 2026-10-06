@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 Guidance for working on `api`, the Go CLI in `personal-lib/api/`. User docs are
 in `README.md`; this file is the architecture and the traps.
 
@@ -277,6 +279,8 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
 
 ```bash
 make check                 # gofmt + vet + go test -race -shuffle=on (run before "done")
+make test                  # go test -count=1 -race ./... (no shuffle)
+go test -count=1 -race ./internal/cli -run TestLogin   # single test / package
 make build                 # -> bin/api (the shim finds it without install)
 make fuzz [FUZZTIME=30s]   # every fuzz target; their seeds already run in `make check`
 make cover                 # coverage summary (cover.out is gitignored)
