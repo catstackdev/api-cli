@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"cybercat/api/internal/config"
@@ -58,7 +57,12 @@ profile can only name a variable (token_env = "API_TOKEN_DEV") that holds one.
 Treat a project .api.toml like code: it chooses the server your requests go to.`,
 	}
 
-	cmd.AddCommand(&cobra.Command{
+	cmd.AddCommand(a.configPathCmd(), a.configShowCmd(), a.configGetCmd(), a.configSetCmd(), a.configInitCmd(), a.configEditCmd(), a.configValidateCmd(), a.configSchemaCmd())
+	return cmd
+}
+
+func (a *app) configPathCmd() *cobra.Command {
+	return &cobra.Command{
 		Use:   "path",
 		Short: "Show which config files are in use",
 		Args:  cobra.NoArgs,
@@ -78,9 +82,11 @@ Treat a project .api.toml like code: it chooses the server your requests go to.`
 			}
 			ui.Table(a.io.Out, []string{"SCOPE", "PATH", "STATE"}, rows, a.colorOut())
 		},
-	})
+	}
+}
 
-	cmd.AddCommand(&cobra.Command{
+func (a *app) configShowCmd() *cobra.Command {
+	return &cobra.Command{
 		Use:   "show",
 		Short: "Show the effective (merged) config",
 		Args:  cobra.NoArgs,
@@ -126,12 +132,7 @@ Treat a project .api.toml like code: it chooses the server your requests go to.`
 				fmt.Fprintln(out)
 			}
 			var arows [][]string
-			names := make([]string, 0, len(c.Alias))
-			for n := range c.Alias {
-				names = append(names, n)
-			}
-			sort.Strings(names)
-			for _, n := range names {
+			for _, n := range sortedKeys(c.Alias) {
 				arows = append(arows, []string{n, c.Alias[n]})
 			}
 			if len(arows) > 0 {
@@ -141,9 +142,11 @@ Treat a project .api.toml like code: it chooses the server your requests go to.`
 				a.say("  (no envs or aliases yet: `api config init`, then `api config set env.dev.url https://...`)")
 			}
 		},
-	})
+	}
+}
 
-	cmd.AddCommand(&cobra.Command{
+func (a *app) configGetCmd() *cobra.Command {
+	return &cobra.Command{
 		Use:   "get <key>",
 		Short: "Print one effective value (e.g. env.dev.url, defaults.timeout)",
 		Args:  cobra.ExactArgs(1),
@@ -155,14 +158,11 @@ Treat a project .api.toml like code: it chooses the server your requests go to.`
 			fmt.Fprintln(a.io.Out, v)
 			return nil
 		},
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return nil, cobra.ShellCompDirectiveNoFileComp
-			}
-			return a.configKeys(toComplete), cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
-		},
-	})
+		ValidArgsFunction: a.completeConfigKey,
+	}
+}
 
+func (a *app) configSetCmd() *cobra.Command {
 	var setScope scope
 	set := &cobra.Command{
 		Use:   "set <key> <value>",
@@ -193,15 +193,13 @@ Treat a project .api.toml like code: it chooses the server your requests go to.`
 			}
 			return nil
 		},
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return nil, cobra.ShellCompDirectiveNoFileComp
-			}
-			return a.configKeys(toComplete), cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
-		},
+		ValidArgsFunction: a.completeConfigKey,
 	}
 	setScope.bind(set)
+	return set
+}
 
+func (a *app) configInitCmd() *cobra.Command {
 	var initScope scope
 	var force bool
 	initCmd := &cobra.Command{
@@ -260,7 +258,10 @@ Treat a project .api.toml like code: it chooses the server your requests go to.`
 	}
 	initScope.bind(initCmd)
 	initCmd.Flags().BoolVar(&force, "force", false, "overwrite an existing file")
+	return initCmd
+}
 
+func (a *app) configEditCmd() *cobra.Command {
 	var editScope scope
 	edit := &cobra.Command{
 		Use:   "edit",
@@ -296,9 +297,15 @@ Treat a project .api.toml like code: it chooses the server your requests go to.`
 		},
 	}
 	editScope.bind(edit)
+	return edit
+}
 
-	cmd.AddCommand(set, initCmd, edit, a.configValidateCmd(), a.configSchemaCmd())
-	return cmd
+// completeConfigKey completes the first argument of `config get|set`.
+func (a *app) completeConfigKey(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return a.configKeys(toComplete), cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
 }
 
 // configKeys completes the settable key paths, expanding <name> with the

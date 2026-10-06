@@ -43,6 +43,83 @@ func listHTTPFiles() []string {
 	return out
 }
 
+func (a *app) printSavedRequests() {
+	names := listHTTPFiles()
+	if len(names) == 0 {
+		a.say("  (no saved requests: put name.http files in " + requestsDir + "/)")
+		return
+	}
+	rows := make([][]string, len(names))
+	for i, n := range names {
+		rows[i] = []string{n}
+	}
+	ui.Table(a.io.Out, []string{"SAVED REQUESTS"}, rows, a.colorOut())
+}
+
+func (a *app) printRequests(file *httpfile.File) {
+	rows := make([][]string, len(file.Requests))
+	for i, r := range file.Requests {
+		rows[i] = []string{fmt.Sprint(i + 1), r.Name, r.Method, r.URL}
+	}
+	ui.Table(a.io.Out, []string{"#", "NAME", "METHOD", "URL"}, rows, a.colorOut())
+}
+
+// splitRunArgs separates the request selector from the jq filter.
+func splitRunArgs(rest []string) (sel, filter string, err error) {
+	for _, x := range rest {
+		switch {
+		case isFilter(x):
+			filter = x
+		case sel == "":
+			sel = x
+		default:
+			return "", "", fmt.Errorf("unexpected argument %q", x)
+		}
+	}
+	return sel, filter, nil
+}
+
+func parseVars(vars []string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, kv := range vars {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok || k == "" {
+			return nil, fmt.Errorf("bad --var %q: want key=value", kv)
+		}
+		out[k] = v
+	}
+	return out, nil
+}
+
+func selectRequests(file *httpfile.File, sel string, all bool) ([]*httpfile.Request, error) {
+	if !all {
+		r, err := file.Find(sel)
+		if err != nil {
+			return nil, err
+		}
+		return []*httpfile.Request{r}, nil
+	}
+	if sel != "" {
+		return nil, fmt.Errorf("--all runs every request: drop the selector %q", sel)
+	}
+	reqs := make([]*httpfile.Request, len(file.Requests))
+	for i := range file.Requests {
+		reqs[i] = &file.Requests[i]
+	}
+	return reqs, nil
+}
+
+// sayRunError prints a failed request's message once (an ExitError may have none).
+func (a *app) sayRunError(err error) {
+	if ee, ok := err.(*ExitError); ok {
+		if ee.Msg != "" {
+			a.say(ee.Msg)
+		}
+		return
+	}
+	a.say("✗ " + err.Error())
+}
+
 func (a *app) runCmd() *cobra.Command {
 	o := &reqOpts{}
 	var (
@@ -74,16 +151,7 @@ pass --trust-hosts.`,
 				if !list {
 					return fmt.Errorf("missing <file|name> (try: api run --list)")
 				}
-				names := listHTTPFiles()
-				if len(names) == 0 {
-					a.say("  (no saved requests: put name.http files in " + requestsDir + "/)")
-					return nil
-				}
-				rows := make([][]string, len(names))
-				for i, n := range names {
-					rows[i] = []string{n}
-				}
-				ui.Table(a.io.Out, []string{"SAVED REQUESTS"}, rows, a.colorOut())
+				a.printSavedRequests()
 				return nil
 			}
 
@@ -101,49 +169,22 @@ pass --trust-hosts.`,
 			}
 
 			if list {
-				rows := make([][]string, len(file.Requests))
-				for i, r := range file.Requests {
-					rows[i] = []string{fmt.Sprint(i + 1), r.Name, r.Method, r.URL}
-				}
-				ui.Table(a.io.Out, []string{"#", "NAME", "METHOD", "URL"}, rows, a.colorOut())
+				a.printRequests(file)
 				return nil
 			}
 
-			sel, filter := "", ""
-			for _, x := range args[1:] {
-				if isFilter(x) {
-					filter = x
-				} else if sel == "" {
-					sel = x
-				} else {
-					return fmt.Errorf("unexpected argument %q", x)
-				}
+			sel, filter, err := splitRunArgs(args[1:])
+			if err != nil {
+				return err
 			}
-			uservars := map[string]string{}
-			for _, kv := range vars {
-				k, v, ok := strings.Cut(kv, "=")
-				if !ok || k == "" {
-					return fmt.Errorf("bad --var %q: want key=value", kv)
-				}
-				uservars[k] = v
+			uservars, err := parseVars(vars)
+			if err != nil {
+				return err
 			}
-
-			var reqs []*httpfile.Request
-			if all {
-				if sel != "" {
-					return fmt.Errorf("--all runs every request: drop the selector %q", sel)
-				}
-				for i := range file.Requests {
-					reqs = append(reqs, &file.Requests[i])
-				}
-			} else {
-				r, err := file.Find(sel)
-				if err != nil {
-					return err
-				}
-				reqs = []*httpfile.Request{r}
+			reqs, err := selectRequests(file, sel, all)
+			if err != nil {
+				return err
 			}
-
 			if a.asserts, err = compileAsserts(path, reqs); err != nil {
 				return err
 			}
@@ -153,13 +194,8 @@ pass --trust-hosts.`,
 				if all {
 					a.say(fmt.Sprintf("→ %s: %s %s", r.Name, r.Method, r.URL))
 				}
-				err := a.runRequest(cmd, path, file, r, uservars, o, filter, o.trustHosts, false)
-				if err != nil {
-					if ee, ok := err.(*ExitError); ok && ee.Msg != "" {
-						a.say(ee.Msg)
-					} else if !ok {
-						a.say("✗ " + err.Error())
-					}
+				if err := a.runRequest(cmd, path, file, r, uservars, o, filter, o.trustHosts, false); err != nil {
+					a.sayRunError(err)
 					if firstErr == nil {
 						firstErr = err
 					}
@@ -214,92 +250,11 @@ func (a *app) runRequest(cmd *cobra.Command, path string, file *httpfile.File, r
 	}
 	s, _ := a.resolve()
 	builtin := map[string]string{"base": s.BaseURL, "graphql": s.GraphQLURL, "token": s.Token, "env": s.Name}
-	var captureErr error
-	lookup := func(name string) (string, bool) {
-		if isCaptureRef(name) {
-			v, err := a.captureLookup(name, o.dry)
-			if err != nil {
-				captureErr = err
-				return "", false
-			}
-			return v, true
-		}
-		if v, ok := uservars[name]; ok {
-			return v, true
-		}
-		if v, ok := file.Vars[name]; ok {
-			return v, true
-		}
-		if v, ok := builtin[name]; ok && v != "" {
-			return v, true
-		}
-		return "", false
-	}
-	getenv := func(name string) (string, bool) {
-		if !strings.HasPrefix(name, "API_") {
-			return "", false
-		}
-		v := a.getenv(name)
-		return v, v != ""
-	}
-
-	secret := false
-	interp := func(in string) (string, error) {
-		out, used, err := httpfile.InterpolateWith(in, interpolateOptions(lookup, getenv))
-		secret = secret || used
-		if err != nil {
-			if captureErr != nil {
-				return "", fmt.Errorf("%w (request %q, line %d)", captureErr, r.Name, r.Line)
-			}
-			return "", fmt.Errorf("%s (request %q, line %d)", err, r.Name, r.Line)
-		}
-		if strings.ContainsAny(out, "\r\n") {
-			return "", fmt.Errorf("request %q: a variable put a line break into %q (header injection?)", r.Name, strings.SplitN(in, "\n", 2)[0])
-		}
-		return out, nil
-	}
-
-	target, err := interp(r.URL)
+	rr, err := a.renderRequest(path, file, r, uservars, builtin, o.dry)
 	if err != nil {
 		return err
 	}
-	type kv struct{ name, value string }
-	var headers []kv
-	for _, h := range r.Headers {
-		name, err := interp(h.Name)
-		if err != nil {
-			return err
-		}
-		value, err := interp(h.Value)
-		if err != nil {
-			return err
-		}
-		headers = append(headers, kv{name, value})
-	}
-	body := r.Body
-	if body != "" {
-		// bodies may legitimately span lines: interpolate, but allow breaks
-		b, used, err := httpfile.InterpolateWith(body, interpolateOptions(lookup, getenv))
-		if err != nil {
-			if captureErr != nil {
-				return fmt.Errorf("%w (request %q)", captureErr, r.Name)
-			}
-			return fmt.Errorf("%s (request %q)", err, r.Name)
-		}
-		secret = secret || used
-		body = b
-	}
-	if r.BodyFile != "" {
-		p := r.BodyFile
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(filepath.Dir(path), p)
-		}
-		data, err := os.ReadFile(p)
-		if err != nil {
-			return fmt.Errorf("request %q: body file: %w", r.Name, err)
-		}
-		body = strings.TrimRight(string(data), "\r\n")
-	}
+	target, headers, body, secret := rr.target, rr.headers, rr.body, rr.secret
 
 	// A file's host is the file author's choice, not yours: never hand it your
 	// session token by default.
@@ -353,6 +308,110 @@ func (a *app) runRequest(cmd *cobra.Command, path string, file *httpfile.File, r
 		return a.finishAsserted(r, resp, &opts, filter, list)
 	}
 	return a.finish(resp, &opts, filter, nil)
+}
+
+// headerKV is one header with its variables expanded.
+type headerKV struct{ name, value string }
+
+// renderedRequest is a request with every {{...}} expanded. secret reports that
+// an expanded value was a token or a {{$env}} value: the caller must not send it
+// to a host the user did not choose.
+type renderedRequest struct {
+	target  string
+	headers []headerKV
+	body    string
+	secret  bool
+}
+
+// renderRequest expands the variables of r. dry only matters for response
+// captures, which stand in as placeholders.
+func (a *app) renderRequest(path string, file *httpfile.File, r *httpfile.Request, uservars, builtin map[string]string, dry bool) (renderedRequest, error) {
+	var captureErr error
+	lookup := func(name string) (string, bool) {
+		if isCaptureRef(name) {
+			v, err := a.captureLookup(name, dry)
+			if err != nil {
+				captureErr = err
+				return "", false
+			}
+			return v, true
+		}
+		if v, ok := uservars[name]; ok {
+			return v, true
+		}
+		if v, ok := file.Vars[name]; ok {
+			return v, true
+		}
+		if v, ok := builtin[name]; ok && v != "" {
+			return v, true
+		}
+		return "", false
+	}
+	getenv := func(name string) (string, bool) {
+		if !strings.HasPrefix(name, "API_") {
+			return "", false
+		}
+		v := a.getenv(name)
+		return v, v != ""
+	}
+
+	secret := false
+	interp := func(in string) (string, error) {
+		out, used, err := httpfile.InterpolateWith(in, interpolateOptions(lookup, getenv))
+		secret = secret || used
+		if err != nil {
+			if captureErr != nil {
+				return "", fmt.Errorf("%w (request %q, line %d)", captureErr, r.Name, r.Line)
+			}
+			return "", fmt.Errorf("%s (request %q, line %d)", err, r.Name, r.Line)
+		}
+		if strings.ContainsAny(out, "\r\n") {
+			return "", fmt.Errorf("request %q: a variable put a line break into %q (header injection?)", r.Name, strings.SplitN(in, "\n", 2)[0])
+		}
+		return out, nil
+	}
+
+	target, err := interp(r.URL)
+	if err != nil {
+		return renderedRequest{}, err
+	}
+	var headers []headerKV
+	for _, h := range r.Headers {
+		name, err := interp(h.Name)
+		if err != nil {
+			return renderedRequest{}, err
+		}
+		value, err := interp(h.Value)
+		if err != nil {
+			return renderedRequest{}, err
+		}
+		headers = append(headers, headerKV{name, value})
+	}
+	body := r.Body
+	if body != "" {
+		// bodies may legitimately span lines: interpolate, but allow breaks
+		b, used, err := httpfile.InterpolateWith(body, interpolateOptions(lookup, getenv))
+		if err != nil {
+			if captureErr != nil {
+				return renderedRequest{}, fmt.Errorf("%w (request %q)", captureErr, r.Name)
+			}
+			return renderedRequest{}, fmt.Errorf("%s (request %q)", err, r.Name)
+		}
+		secret = secret || used
+		body = b
+	}
+	if r.BodyFile != "" {
+		p := r.BodyFile
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(filepath.Dir(path), p)
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return renderedRequest{}, fmt.Errorf("request %q: body file: %w", r.Name, err)
+		}
+		body = strings.TrimRight(string(data), "\r\n")
+	}
+	return renderedRequest{target: target, headers: headers, body: body, secret: secret}, nil
 }
 
 // runDependencies runs, once and silently, every request whose response r uses

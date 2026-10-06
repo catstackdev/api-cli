@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -80,6 +81,30 @@ func (a *app) loadOpenAPI() *openapi.Index {
 	return &idx
 }
 
+// requireOpenAPI is loadOpenAPI for commands that cannot work without an index.
+func (a *app) requireOpenAPI() (*openapi.Index, error) {
+	idx := a.loadOpenAPI()
+	if idx == nil {
+		return nil, &ExitError{Code: exitGeneric, Msg: "✗ no OpenAPI index for this server: run `api openapi sync`"}
+	}
+	return idx, nil
+}
+
+// matchesFilter is the case-insensitive match of `list` and the picker; needle
+// must already be lower-case.
+func matchesFilter(op openapi.Operation, needle string) bool {
+	return needle == "" || strings.Contains(strings.ToLower(op.Path+" "+op.Summary+" "+op.OperationID), needle)
+}
+
+// prettyBody pretty-prints a body skeleton; ok is false when it is not JSON.
+func prettyBody(body string) (pretty string, ok bool) {
+	var buf bytes.Buffer
+	if json.Indent(&buf, []byte(body), "", "  ") != nil {
+		return "", false
+	}
+	return buf.String(), true
+}
+
 func (a *app) openapiCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "openapi",
@@ -126,84 +151,99 @@ usual locations are tried in turn.`,
 				return err
 			}
 			var data []byte
-			var source string
+			source := file
 			if file != "" {
-				st, err := os.Stat(file)
-				if err != nil {
-					return err
-				}
-				if st.Size() > openapi.MaxSpecBytes {
-					return &ExitError{Code: exitGeneric, Msg: "✗ " + file + ": spec too large"}
-				}
-				if data, err = os.ReadFile(file); err != nil {
-					return err
-				}
-				source = file
+				data, err = readSpecFile(file)
 			} else {
-				// An argument wins, then the selected env's `openapi` path; only with
-				// neither do we probe the usual locations (a 404 then means "next").
-				candidates, probing := defaultSpecPaths, true
-				if _, prof := a.resolve(); len(args) == 0 && prof.OpenAPI != "" {
-					candidates, probing = []string{prof.OpenAPI}, false
-				}
-				if len(args) == 1 {
-					candidates, probing = args, false
-				}
-				for _, c := range candidates {
-					spec, err := a.newSpec("GET", c, o)
-					if err != nil {
-						return err
-					}
-					if o.dry {
-						return a.dispatch(cmd.Context(), spec, o, ".", "", nil)
-					}
-					resp, err := a.sendRecovering(cmd.Context(), spec, o)
-					if err != nil {
-						return err
-					}
-					if resp.Status == 404 && probing {
-						continue // probing: try the next common location
-					}
-					if resp.Status >= 400 {
-						return &ExitError{Code: exitHTTP, Msg: fmt.Sprintf("✗ GET %s: HTTP %d %s", c, resp.Status, resp.StatusText)}
-					}
-					data, source = resp.Body, c
-					break
-				}
-				if data == nil {
-					return &ExitError{Code: exitGeneric, Msg: "✗ no OpenAPI document found (tried " + strings.Join(candidates, ", ") + "): pass its path, or --file"}
+				var dry bool
+				if data, source, dry, err = a.fetchSpec(cmd.Context(), args, o); dry {
+					return err
 				}
 			}
-			idx, err := openapi.Parse(data)
-			if err != nil {
-				return &ExitError{Code: exitGeneric, Msg: "✗ " + source + ": " + err.Error()}
-			}
-			idx.Source = source
-			idx.Fetched = time.Now().UTC().Format(time.RFC3339)
-			out, err := json.MarshalIndent(idx, "", " ")
 			if err != nil {
 				return err
 			}
-			if err := os.MkdirAll(filepath.Dir(cacheFile), 0o700); err != nil {
-				return err
-			}
-			if err := writeFileAtomic(cacheFile, out, 0o600); err != nil {
-				return err
-			}
-			a.say(fmt.Sprintf("✓ %d operations from %s cached: %s", len(idx.Operations), source, cacheFile))
-			if idx.Skipped > 0 {
-				a.say(fmt.Sprintf("⚠ %d path(s) with control characters, spaces or an unusual shape were skipped", idx.Skipped))
-			}
-			if idx.Truncated {
-				a.say(fmt.Sprintf("⚠ the spec has more than %d operations: the index stops there", openapi.MaxOperations))
-			}
-			return nil
+			return a.storeIndex(cacheFile, data, source)
 		},
 	}
 	a.bindRequestFlags(o, cmd.Flags(), false)
 	a.bindTransportFlags(o, cmd.Flags())
 	cmd.Flags().StringVar(&file, "file", "", "read the spec from a local JSON file instead of the server")
 	return cmd
+}
+
+func readSpecFile(file string) ([]byte, error) {
+	st, err := os.Stat(file)
+	if err != nil {
+		return nil, err
+	}
+	if st.Size() > openapi.MaxSpecBytes {
+		return nil, &ExitError{Code: exitGeneric, Msg: "✗ " + file + ": spec too large"}
+	}
+	return os.ReadFile(file)
+}
+
+// fetchSpec gets the spec through the normal request pipeline. dry reports that
+// --dry printed the request instead of sending it (err is then dispatch's result).
+func (a *app) fetchSpec(ctx context.Context, args []string, o *reqOpts) (data []byte, source string, dry bool, err error) {
+	// An argument wins, then the selected env's `openapi` path; only with
+	// neither do we probe the usual locations (a 404 then means "next").
+	candidates, probing := defaultSpecPaths, true
+	if _, prof := a.resolve(); len(args) == 0 && prof.OpenAPI != "" {
+		candidates, probing = []string{prof.OpenAPI}, false
+	}
+	if len(args) == 1 {
+		candidates, probing = args, false
+	}
+	for _, c := range candidates {
+		spec, err := a.newSpec("GET", c, o)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if o.dry {
+			return nil, "", true, a.dispatch(ctx, spec, o, ".", "", nil)
+		}
+		resp, err := a.sendRecovering(ctx, spec, o)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if resp.Status == 404 && probing {
+			continue // probing: try the next common location
+		}
+		if resp.Status >= 400 {
+			return nil, "", false, &ExitError{Code: exitHTTP, Msg: fmt.Sprintf("✗ GET %s: HTTP %d %s", c, resp.Status, resp.StatusText)}
+		}
+		return resp.Body, c, false, nil
+	}
+	return nil, "", false, &ExitError{Code: exitGeneric, Msg: "✗ no OpenAPI document found (tried " + strings.Join(candidates, ", ") + "): pass its path, or --file"}
+}
+
+// storeIndex parses the document and writes only its index, never the raw spec.
+func (a *app) storeIndex(cacheFile string, data []byte, source string) error {
+	idx, err := openapi.Parse(data)
+	if err != nil {
+		return &ExitError{Code: exitGeneric, Msg: "✗ " + source + ": " + err.Error()}
+	}
+	idx.Source = source
+	idx.Fetched = time.Now().UTC().Format(time.RFC3339)
+	out, err := json.MarshalIndent(idx, "", " ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(cacheFile), 0o700); err != nil {
+		return err
+	}
+	if err := writeFileAtomic(cacheFile, out, 0o600); err != nil {
+		return err
+	}
+	a.say(fmt.Sprintf("✓ %d operations from %s cached: %s", len(idx.Operations), source, cacheFile))
+	if idx.Skipped > 0 {
+		a.say(fmt.Sprintf("⚠ %d path(s) with control characters, spaces or an unusual shape were skipped", idx.Skipped))
+	}
+	if idx.Truncated {
+		a.say(fmt.Sprintf("⚠ the spec has more than %d operations: the index stops there", openapi.MaxOperations))
+	}
+	return nil
 }
 
 func (a *app) openapiListCmd() *cobra.Command {
@@ -213,9 +253,9 @@ func (a *app) openapiListCmd() *cobra.Command {
 		Short: "List the cached operations (filter matches path, summary or operationId)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			idx := a.loadOpenAPI()
-			if idx == nil {
-				return &ExitError{Code: exitGeneric, Msg: "✗ no OpenAPI index for this server: run `api openapi sync`"}
+			idx, err := a.requireOpenAPI()
+			if err != nil {
+				return err
 			}
 			filter := ""
 			if len(args) == 1 {
@@ -226,8 +266,7 @@ func (a *app) openapiListCmd() *cobra.Command {
 				if method != "" && !strings.EqualFold(method, op.Method) {
 					continue
 				}
-				hay := strings.ToLower(op.Path + " " + op.Summary + " " + op.OperationID)
-				if filter != "" && !strings.Contains(hay, filter) {
+				if !matchesFilter(op, filter) {
 					continue
 				}
 				rows = append(rows, []string{op.Method, op.Path, op.Summary})
@@ -306,12 +345,11 @@ func pickFile(op openapi.Operation, slug string) string {
 		if body == "" {
 			body = "{}"
 		}
-		var pretty bytes.Buffer
-		if json.Indent(&pretty, []byte(body), "", "  ") != nil {
-			pretty.Reset()
-			pretty.WriteString("{}")
+		pretty, ok := prettyBody(body)
+		if !ok {
+			pretty = "{}"
 		}
-		b.WriteString("Content-Type: application/json\n\n" + pretty.String() + "\n")
+		b.WriteString("Content-Type: application/json\n\n" + pretty + "\n")
 	}
 	return b.String()
 }
@@ -384,9 +422,9 @@ func (a *app) openapiShowCmd() *cobra.Command {
 		Short: "Show one cached operation (summary and body skeleton): the picker's preview",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			idx := a.loadOpenAPI()
-			if idx == nil {
-				return &ExitError{Code: exitGeneric, Msg: "✗ no OpenAPI index for this server: run `api openapi sync`"}
+			idx, err := a.requireOpenAPI()
+			if err != nil {
+				return err
 			}
 			for _, op := range idx.Operations {
 				if !strings.EqualFold(op.Method, args[0]) || op.Path != args[1] {
@@ -399,11 +437,8 @@ func (a *app) openapiShowCmd() *cobra.Command {
 				if op.OperationID != "" {
 					fmt.Fprintln(a.io.Out, "operationId: "+op.OperationID)
 				}
-				if op.Body != "" {
-					var pretty bytes.Buffer
-					if json.Indent(&pretty, []byte(op.Body), "", "  ") == nil {
-						fmt.Fprintf(a.io.Out, "\nrequest body (skeleton):\n%s\n", pretty.String())
-					}
+				if pretty, ok := prettyBody(op.Body); op.Body != "" && ok {
+					fmt.Fprintf(a.io.Out, "\nrequest body (skeleton):\n%s\n", pretty)
 				}
 				return nil
 			}
@@ -415,15 +450,15 @@ func (a *app) openapiShowCmd() *cobra.Command {
 // openapiPick lets the user choose one cached operation, then (unless --print)
 // edits, saves and runs it.
 func (a *app) openapiPick(cmd *cobra.Command, text string, pf pickFlags, o *reqOpts) error {
-	idx := a.loadOpenAPI()
-	if idx == nil {
-		return &ExitError{Code: exitGeneric, Msg: "✗ no OpenAPI index for this server: run `api openapi sync`"}
+	idx, err := a.requireOpenAPI()
+	if err != nil {
+		return err
 	}
 	byLine := map[string]openapi.Operation{}
 	var lines []string
 	needle := strings.ToLower(text)
 	for _, op := range idx.Operations {
-		if needle != "" && !strings.Contains(strings.ToLower(op.Path+" "+op.Summary+" "+op.OperationID), needle) {
+		if !matchesFilter(op, needle) {
 			continue
 		}
 		line := strings.TrimSpace(fmt.Sprintf("%-7s %s  %s", op.Method, op.Path, op.Summary))
