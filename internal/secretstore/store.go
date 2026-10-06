@@ -1,9 +1,11 @@
 // Package secretstore keeps secrets (a login password, a token) in the
 // operating system's credential store, never in a file this tool writes.
 //
-// macOS uses the Keychain through the `security` command. Elsewhere there is no
-// store: Default returns one whose methods fail with ErrUnavailable, and users
-// fall back to @env:NAME or @prompt value references.
+// macOS uses the Keychain through the `security` command; Linux uses the
+// freedesktop Secret Service through `secret-tool` (libsecret). Elsewhere, or
+// without that tool, there is no store: Default returns one whose methods fail
+// with ErrUnavailable, and users fall back to @env:NAME or @prompt value
+// references.
 package secretstore
 
 import (

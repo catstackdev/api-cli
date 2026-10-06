@@ -239,7 +239,7 @@ func (a *app) doctorChecks() []check {
 	if _, err := a.store.Get("doctor-probe"); err == nil || errors.Is(err, secretstore.ErrNotFound) {
 		add("credentials", lvlOK, "credential store available (api secret set NAME, then @keychain:NAME)")
 	} else if errors.Is(err, secretstore.ErrUnavailable) {
-		add("credentials", lvlWarn, "no credential store on this system: use @env:NAME or @prompt for passwords")
+		add("credentials", lvlWarn, "no credential store on this system: use @env:NAME or @prompt for passwords (Linux: install secret-tool from libsecret-tools)")
 	} else {
 		add("credentials", lvlWarn, "credential store error: %v", err)
 	}

@@ -50,7 +50,8 @@ Code column: a function in the code base (`name()`). Tests column: test names.
 | A literal password in a config file or `config set` is rejected | `ValidateLogin()` | `TestConfigRejectsLiteralPasswords` |
 | `--dry` never reads the Keychain, prompts or sends | `maskRef()` | `TestDryRunNeverTouchesSecrets` |
 | Replacing a password keeps its server binding | `secretCmd()` | `TestSecretSetBindShow` |
-| Keychain entries are namespaced, stored as printable ASCII and written over stdin, never as an argument | `encode()` `decode()` | `TestKeychainFormats` `TestNamesAreValidated` |
+| Credential-store entries (Keychain, Secret Service) are namespaced, stored as printable ASCII and written over stdin, never as an argument | `encode()` `decode()` `newSecretService()` | `TestKeychainFormats` `TestNamesAreValidated` `TestSecretServiceNeverPutsTheSecretInAnArgument` |
+| A credential store that is down (no D-Bus session, locked keyring) is an error, never "not found" | `newSecretService()` | `TestSecretServiceDownIsNotNotFound` |
 
 ### Token cache (`defaults.token_cache`, `defaults.auto_login`)
 

@@ -49,7 +49,8 @@ internal/history/         method+path+filter for completion and `again`
 internal/jsonbody/        `api json` builder (ordered, dotted keys, :=, value references)
 internal/secret/          the ONE definition of "looks like a secret" (envfile, har, history)
 internal/secretref/       value references: @keychain:NAME, @env:NAME, @prompt, @@
-internal/secretstore/     credential store: macOS Keychain via `security`; fake for tests
+internal/secretstore/     credential store: macOS Keychain (`security`), Linux Secret Service
+                          (`secret-tool`); shared entry format; fakes for tests
 internal/session/         API_* env + shell quoting (Quote, Export, Unset)
 internal/schema/          GraphQL introspection: signatures, index lines, embedded preview.jq
 internal/jwt/             unverified exp/iat reader (display and cache expiry only)
@@ -182,7 +183,12 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     ASCII; `security -w` prints other data as ambiguous hex) and written over
     stdin to `security -i`, never as an argument. Tests must never touch the
     real Keychain: `run()` injects `secretstore.NewMemory()`; `TestKeychain` is
-    opt-in (`make e2e-keychain`, throwaway item).
+    opt-in (`make e2e-keychain`, throwaway item). The entry format
+    (`encoding.go`) is shared by both backends. Linux uses `secret-tool`
+    (`secretservice.go`, built on every OS and tested against a fake binary;
+    `TestSecretService` is the opt-in real one, `make e2e-secretservice`): the
+    secret goes over stdin, and a dead Secret Service must stay an error, not
+    `ErrNotFound`.
 25. **`resolveFor(env)` is pure**: need several envs at once (diff)? call it per
     env; never set and restore `app.envName`.
 26. **Dependencies keep `go 1.24`**: `go get ...@latest` can raise the `go`

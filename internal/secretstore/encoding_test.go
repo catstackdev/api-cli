@@ -1,5 +1,3 @@
-//go:build darwin
-
 package secretstore
 
 import (
@@ -7,7 +5,7 @@ import (
 	"testing"
 )
 
-// The Keychain entry format, without touching the real Keychain.
+// The stored entry format, without touching a real credential store.
 func TestKeychainFormats(t *testing.T) {
 	// unbound: the older, still-written format
 	plain := encode(Secret{Value: "pässword 'q'"})

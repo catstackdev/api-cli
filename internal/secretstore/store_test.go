@@ -57,7 +57,26 @@ func TestKeychain(t *testing.T) {
 	if _, err := exec.LookPath("security"); err != nil {
 		t.Skip("no `security` command (not macOS)")
 	}
-	s := Default()
+	realRoundTrip(t, Default())
+}
+
+// TestSecretService is the same against a REAL Secret Service through
+// `secret-tool` (Linux). Opt-in: API_TEST_SECRETSERVICE=1, in a desktop session
+// (or `dbus-run-session` with an unlocked keyring).
+func TestSecretService(t *testing.T) {
+	if os.Getenv("API_TEST_SECRETSERVICE") == "" {
+		t.Skip("set API_TEST_SECRETSERVICE=1 to test the real Secret Service")
+	}
+	bin, err := exec.LookPath("secret-tool")
+	if err != nil {
+		t.Skip("no `secret-tool` (install libsecret-tools)")
+	}
+	realRoundTrip(t, newSecretService(bin))
+}
+
+// realRoundTrip stores, reads and removes a throwaway item in a real store.
+func realRoundTrip(t *testing.T, s Store) {
+	t.Helper()
 	name := "test-" + strings.ReplaceAll(t.Name(), "/", "-") + "-tmp"
 	_ = s.Delete(name)
 	t.Cleanup(func() { _ = s.Delete(name) })
@@ -65,7 +84,7 @@ func TestKeychain(t *testing.T) {
 	if _, err := s.Get(name); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("fresh name must be not found, got %v", err)
 	}
-	for _, secret := range []string{"simple", "with space and 'quotes' \"dq\" $(cmd) `bt` ;|&", "päss-wörd-ünïcode"} {
+	for _, secret := range []string{"simple", "with space and 'quotes' \"dq\" $(cmd) `bt` ;|&", "päss-wörd-ünïcode", "two\nlines"} {
 		if err := s.Set(name, Secret{Value: secret}); err != nil {
 			t.Fatalf("Set: %v", err)
 		}

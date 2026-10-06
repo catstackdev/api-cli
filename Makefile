@@ -7,7 +7,7 @@ LDFLAGS  := -s -w -X cybercat/api/internal/cli.Version=$(VERSION) -X cybercat/ap
 # CGO off: a static binary that cross-compiles cleanly (e.g. for Termux).
 export CGO_ENABLED := 0
 
-.PHONY: build install test vet fmt check lint e2e e2e-keychain smoke fuzz vuln cover release clean
+.PHONY: build install test vet fmt check lint e2e e2e-keychain e2e-secretservice smoke fuzz vuln cover release clean
 
 build:
 	go build -ldflags '$(LDFLAGS)' -o $(BIN) ./cmd/api
@@ -38,6 +38,10 @@ lint:
 # The real macOS Keychain, with one throwaway item that is removed again.
 e2e-keychain:
 	API_TEST_KEYCHAIN=1 go test -count=1 -v -run TestKeychain ./internal/secretstore
+
+# The real Secret Service via secret-tool, one throwaway item (Linux desktop session).
+e2e-secretservice:
+	API_TEST_SECRETSERVICE=1 go test -count=1 -v -run 'TestSecretService$$' ./internal/secretstore
 
 # Shell shim end to end (needs python3 and localhost ports; run outside a sandbox).
 e2e: build

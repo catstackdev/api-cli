@@ -135,7 +135,8 @@ failed login.
 ## Login without typing
 
 Credentials never go in a config file, a command line or your shell history.
-Store the password once in the macOS Keychain, **bound to the server it may be
+Store the password once in the macOS Keychain (on Linux, the Secret Service:
+see below), **bound to the server it may be
 sent to**, describe the login once, then just run `api login`.
 
 ```zsh
@@ -282,8 +283,12 @@ only with `--reveal`), `rm NAME`, `list [--prune]` (names, binding state and
 servers; never values; it reads a names-only index in
 `~/.local/state/api/secrets`, and `api doctor` warns about unbound secrets).
 `api env status` and `doctor` show a JWT's expiry. Secrets are stored namespaced
-(`api:NAME`) and sent to the Keychain over stdin, never as an argument. Other
-systems have no store: use `@env:` or `@prompt`. `--dry` shows the request with
+(`api:NAME`) and sent to the store over stdin, never as an argument. On Linux
+the store is the freedesktop Secret Service (GNOME Keyring, KWallet, KeePassXC)
+through `secret-tool` (package `libsecret-tools`), needing a desktop or
+`dbus-run-session` session; entries have the attributes `service=api:NAME
+account=api`. Without a store (no `secret-tool`, other systems) use `@env:` or
+`@prompt`. `--dry` shows the request with
 secrets masked and never reads the Keychain or sends. A literal password in
 `login.vars` (or via `config set`) is rejected.
 
@@ -568,6 +573,7 @@ Completion is offline and fast; it never calls the network.
 ```zsh
 make check      # gofmt + vet + go test -race (httptest servers)
 make e2e-keychain  # the real Keychain, one throwaway item (macOS)
+make e2e-secretservice  # the real Secret Service via secret-tool (Linux desktop)
 make build      # bin/api
 ```
 
