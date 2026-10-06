@@ -14,9 +14,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -60,6 +62,12 @@ type Env struct {
 	// token_env it is honoured only from the GLOBAL file: it names where your
 	// credentials come from and where they are sent.
 	Login *Login `toml:"login,omitempty"`
+}
+
+// anchored reports whether the env is tied to a server (url, login or
+// token_env). Such a global env must not be redefined by a project file.
+func (e Env) anchored() bool {
+	return e.URL != "" || e.Login != nil || e.TokenEnv != ""
 }
 
 // Login is a login request, with credentials as value references.
@@ -278,17 +286,15 @@ func ParseText(data []byte, path string) (Config, error) {
 		return Config{}, fmt.Errorf("%s: [vars]: %w", path, err)
 	}
 	for name, e := range c.Env {
-		if err := ValidateTokenEnv(e.TokenEnv); err != nil {
-			return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
-		}
-		if err := ValidateEndpointPrefix(e.EndpointPrefix); err != nil {
-			return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
-		}
-		if err := ValidateOpenAPIPath(e.OpenAPI); err != nil {
-			return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
-		}
-		if err := ValidateLogin(e.Login); err != nil {
-			return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
+		for _, err := range []error{
+			ValidateTokenEnv(e.TokenEnv),
+			ValidateEndpointPrefix(e.EndpointPrefix),
+			ValidateOpenAPIPath(e.OpenAPI),
+			ValidateLogin(e.Login),
+		} {
+			if err != nil {
+				return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
+			}
 		}
 	}
 	return c, nil
@@ -338,9 +344,9 @@ func LoadWith(startDir string, getenv func(string) string) (Loaded, error) {
 	// real token to a server the repo chose.
 	for name, pe := range loc.Env {
 		ge, inGlobal := g.Env[name]
-		// an env the global config already anchors to a server (url, login or
-		// token_env) is not the project's to redefine
-		protected := inGlobal && (ge.URL != "" || ge.Login != nil || ge.TokenEnv != "")
+		// an env the global config already anchors to a server is not the
+		// project's to redefine
+		protected := inGlobal && ge.anchored()
 		if pe.TokenEnv != "" {
 			l.Warnings = append(l.Warnings, fmt.Sprintf("%s: env.%s.token_env ignored (token_env is only honoured in the global config)", local, name))
 			pe.TokenEnv = ""
@@ -374,7 +380,7 @@ func LoadWith(startDir string, getenv func(string) string) (Loaded, error) {
 	l.Config = Merge(g, loc)
 	for name, pe := range loc.Env {
 		ge, inGlobal := g.Env[name]
-		protected := inGlobal && (ge.URL != "" || ge.Login != nil || ge.TokenEnv != "")
+		protected := inGlobal && ge.anchored()
 		moved := protected && ((pe.URL != "" && pe.URL != ge.URL) || (pe.GraphQL != "" && pe.GraphQL != ge.GraphQL))
 		if moved && (l.Env[name].TokenEnv != "" || l.Env[name].Login != nil) {
 			e := l.Env[name]
@@ -420,9 +426,7 @@ func Merge(base, over Config) Config {
 	}
 
 	out.Env = map[string]Env{}
-	for k, v := range base.Env {
-		out.Env[k] = v
-	}
+	maps.Copy(out.Env, base.Env)
 	for k, v := range over.Env {
 		e := out.Env[k]
 		if v.URL != "" {
@@ -448,24 +452,16 @@ func Merge(base, over Config) Config {
 		}
 		if len(v.Headers) > 0 {
 			h := map[string]string{}
-			for hk, hv := range e.Headers {
-				h[hk] = hv
-			}
-			for hk, hv := range v.Headers {
-				h[hk] = hv
-			}
+			maps.Copy(h, e.Headers)
+			maps.Copy(h, v.Headers)
 			e.Headers = h
 		}
 		out.Env[k] = e
 	}
 
 	out.Alias = map[string]string{}
-	for k, v := range base.Alias {
-		out.Alias[k] = v
-	}
-	for k, v := range over.Alias {
-		out.Alias[k] = v
-	}
+	maps.Copy(out.Alias, base.Alias)
+	maps.Copy(out.Alias, over.Alias)
 	return out
 }
 
@@ -484,20 +480,7 @@ func Duration(s string) (time.Duration, error) {
 
 // EnvNames lists the configured env names, sorted.
 func (c Config) EnvNames() []string {
-	names := make([]string, 0, len(c.Env))
-	for n := range c.Env {
-		names = append(names, n)
-	}
-	sortStrings(names)
-	return names
-}
-
-func sortStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j] < s[j-1]; j-- {
-			s[j], s[j-1] = s[j-1], s[j]
-		}
-	}
+	return slices.Sorted(maps.Keys(c.Env))
 }
 
 var unsafeAliasWords = []string{"@keychain:", "@env:", "@prompt", "--trust-hosts", "--token", "--base", "--har-secrets"}
