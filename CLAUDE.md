@@ -25,13 +25,16 @@ cmd/api/main.go           entry: signal-aware context -> cli.Run
 internal/cli/             cobra commands; one file per concern
   root.go                 app, IO, ExitError, exit codes, resolve() (env/session
                           precedence), aliases, command wiring
-  request.go              reqOpts flags, newSpec, dispatch/send/finish pipeline
+  request.go              newSpec/newSpecFor, verbCmd, dispatch/send/finish pipeline
+  request_flags.go        reqOpts + bind*Flags, positional/filter/`--` parsing
+  request_print.go        curlLine (masked), execCurl, header printing
   gql.go  login.go  env.go  env_example.go  config_cmd.go  diff.go  run.go
   history.go  doctor.go  tools.go  complete.go  secret.go  refs.go
   resolve.go              which server/token/profile a request may use (security core)
   tokencache.go logout.go token cache, 401 recovery, auto login, api logout
   run.go run_capture.go   .http runner and {{name.response.*}} capture
-  schema.go schema_pick.go  introspection commands, sync, fzf browser, editor
+  schema.go schema_sync.go  introspection commands; `schema sync` (cache writer)
+  schema_pick.go            fzf browser, editor
 internal/ui/              ALL terminal presentation: colour decision, styled
                           messages, status/header lines, pager, tables
 internal/httpc/           Spec -> request / curl args / client / trace
