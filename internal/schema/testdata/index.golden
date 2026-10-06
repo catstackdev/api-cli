@@ -1,0 +1,6 @@
+user enum Role
+user input LoginInput
+user mutation login
+user query me
+user query user
+user type User

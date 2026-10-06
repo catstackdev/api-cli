@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "api config (config.toml / .api.toml)",
+  "description": "Configuration of the `api` CLI. It never holds secrets: tokens and passwords are value references (@keychain:NAME, @env:NAME, @prompt).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "default_env": {
+      "type": "string",
+      "description": "The [env.<name>] used when the shell has no session base URL."
+    },
+    "vars": {
+      "type": "object",
+      "description": "Which .env variables hold this project's URLs (URLs only, never a token).",
+      "additionalProperties": false,
+      "properties": {
+        "base_url": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "description": "Variable that holds the base URL." },
+        "graphql_url": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "description": "Variable that holds the GraphQL URL." },
+        "env_suffix": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "description": "The .env.<suffix> that `api env load` uses with no argument (a suffix, never a path)." }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Fallbacks for flags: flags > environment variables > these > built-in.",
+      "additionalProperties": false,
+      "properties": {
+        "timeout": { "type": "string", "examples": ["300s"] },
+        "connect_timeout": { "type": "string", "examples": ["10s"] },
+        "retry": { "type": "integer", "minimum": 0 },
+        "color": { "enum": ["auto", "always", "never"] },
+        "summary": { "type": "boolean" },
+        "editor": { "type": "string", "description": "Global config only. The command `api schema` opens items in (default $API_EDITOR, $VISUAL, $EDITOR, nvim)." },
+        "token_cache": { "type": "boolean", "description": "Global config only. Keep login tokens in the Keychain, bound to the env's base URL." },
+        "auto_login": { "type": "boolean", "description": "Global config only. Log in again from the env's login block after a 401 (Keychain references only)." }
+      }
+    },
+    "env": {
+      "type": "object",
+      "description": "Named environments: api --env <name>.",
+      "additionalProperties": { "$ref": "#/$defs/env" }
+    },
+    "alias": {
+      "type": "object",
+      "description": "Short commands: api <alias>. A project file may not use references or flags that widen where a token goes.",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "format": "uri", "description": "Base URL of this environment." },
+        "graphql": { "type": "string", "format": "uri", "description": "GraphQL base URL." },
+        "endpoint_prefix": { "type": "string", "pattern": "^[A-Za-z0-9_./-]*$", "description": "Put in front of a bare endpoint name by `api schema` (v2/ makes user mean v2/user)." },
+        "endpoints": { "type": "array", "items": { "type": "string" }, "description": "GraphQL endpoints for completion and `api schema sync`." },
+        "token_env": { "type": "string", "pattern": "^API_TOKEN_[A-Z0-9_]+$", "description": "Global config only. The variable that holds this env's token." },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Extra headers sent to this env (not credentials)." },
+        "login": {
+          "type": "object",
+          "description": "How to log in without typing: exactly one of path (REST) or gql (GraphQL).",
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "description": "REST: POST <path> with vars as the JSON body." },
+            "gql": { "type": "string", "description": "GraphQL: the login mutation." },
+            "endpoint": { "type": "string", "description": "GraphQL: like api gql -e." },
+            "token_path": { "type": "string", "pattern": "^\\.", "description": "jq path of the token in the response." },
+            "vars": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Body fields / GraphQL variables; dots nest. Secret-looking keys must be value references." }
+          }
+        }
+      }
+    }
+  }
+}

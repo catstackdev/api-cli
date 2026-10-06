@@ -1,0 +1,155 @@
+{
+  "queryType": {
+    "name": "Query"
+  },
+  "mutationType": {
+    "name": "Mutation"
+  },
+  "types": [
+    {
+      "name": "Query",
+      "kind": "OBJECT",
+      "fields": [
+        {
+          "name": "me",
+          "args": [],
+          "type": {
+            "kind": "OBJECT",
+            "name": "User",
+            "ofType": null
+          }
+        },
+        {
+          "name": "user",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "User",
+            "ofType": null
+          }
+        }
+      ],
+      "inputFields": null,
+      "enumValues": null
+    },
+    {
+      "name": "Mutation",
+      "kind": "OBJECT",
+      "fields": [
+        {
+          "name": "login",
+          "args": [
+            {
+              "name": "input",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "LoginInput",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Auth",
+            "ofType": null
+          }
+        }
+      ],
+      "inputFields": null,
+      "enumValues": null
+    },
+    {
+      "name": "User",
+      "kind": "OBJECT",
+      "fields": [
+        {
+          "name": "id",
+          "args": [],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "name",
+          "args": [],
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        }
+      ],
+      "inputFields": null,
+      "enumValues": null
+    },
+    {
+      "name": "LoginInput",
+      "kind": "INPUT_OBJECT",
+      "fields": null,
+      "inputFields": [
+        {
+          "name": "username",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "password",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        }
+      ],
+      "enumValues": null
+    },
+    {
+      "name": "Role",
+      "kind": "ENUM",
+      "fields": null,
+      "inputFields": null,
+      "enumValues": [
+        {
+          "name": "ADMIN"
+        },
+        {
+          "name": "USER"
+        }
+      ]
+    }
+  ]
+}

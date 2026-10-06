@@ -1,0 +1,1540 @@
+===== api =====
+REST + GraphQL client for the terminal
+
+Usage:
+  api [command]
+
+Available Commands:
+  again       Repeat the Nth most recent GET request (default: the last one)
+  config      Show and edit the global / project config (envs, defaults, aliases)
+  del         DELETE a path
+  diff        Send the same request to two envs and show how the JSON differs
+  doctor      Check the setup: binary, shell shim, completion, config, session, tools, .env permissions
+  env         Show, load or clear the API session (API_BASE_URL, API_TOKEN, ...)
+  form        POST multipart (-F) or urlencoded (-d) form data
+  get         GET a path
+  gql         GraphQL request against $API_GRAPHQL_URL (or $API_BASE_URL/graphql)
+  headers     GET a path and print only the response headers
+  history     List recent requests (method, path, filter: never bodies or tokens)
+  json        Build a JSON object from key=value / key:=json arguments
+  login       Log in (REST or GraphQL) and store the token as API_TOKEN
+  logout      Forget this shell's token and the cached token of the env
+  patch       PATCH with a JSON body
+  post        POST a JSON body
+  put         PUT a JSON body
+  run         Run saved requests from a .http file (JetBrains / VS Code REST Client format)
+  schema      Explore a GraphQL service by introspection (names, types, local cache)
+  secret      Store passwords in the system credential store (macOS Keychain)
+  time        Request timing breakdown: dns / connect / tls / ttfb / total
+  watch       GET a path every interval until Ctrl+C
+
+Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api [command] --help" for more information about a command.
+
+===== api again =====
+Repeats a request from the history. Only GET requests can be repeated: bodies
+and tokens are never stored, so a POST would be sent without its body. The
+current env and token are used, so after switching envs this runs there. A
+.filter argument replaces the stored one. All the usual flags (-i, -c, --dry,
+...) work. --pick chooses the entry with fzf.
+
+Usage:
+  api again [N] [.filter] [--pick] [flags]
+
+Examples:
+  api again            # repeat the last request
+  api again 3 .data.id # the third most recent, with a different filter
+  api again --pick
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+      --pick                       choose the entry with fzf
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api config =====
+Optional TOML config. Global: ~/.config/api/config.toml. Project: the nearest
+.api.toml. They merge key by key (project wins).
+
+  api --env dev get /users       use [env.dev]
+  api me                         run the alias [alias] me = "..."
+
+It never holds secrets: tokens and passwords are not part of the schema, and a
+profile can only name a variable (token_env = "API_TOKEN_DEV") that holds one.
+Treat a project .api.toml like code: it chooses the server your requests go to.
+
+Usage:
+  api config [command]
+
+Available Commands:
+  edit        Open the config file in $EDITOR (created from the template if missing)
+  get         Print one effective value (e.g. env.dev.url, defaults.timeout)
+  init        Create a commented config file
+  path        Show which config files are in use
+  schema      Print the JSON Schema of the config files (for editors and CI)
+  set         Set a value in the project file (if there is one) or the global file
+  show        Show the effective (merged) config
+  validate    Check config files for errors and for settings that will be ignored
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api config [command] --help" for more information about a command.
+
+===== api config edit =====
+Open the config file in $EDITOR (created from the template if missing)
+
+Usage:
+  api config edit [flags]
+
+Flags:
+      --global   the global file (~/.config/api/config.toml)
+      --local    the project file (.api.toml)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api config get =====
+Print one effective value (e.g. env.dev.url, defaults.timeout)
+
+Usage:
+  api config get <key> [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api config init =====
+Create a commented config file
+
+Usage:
+  api config init [flags]
+
+Flags:
+      --force    overwrite an existing file
+      --global   the global file (~/.config/api/config.toml)
+      --local    the project file (.api.toml)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api config path =====
+Show which config files are in use
+
+Usage:
+  api config path [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api config schema =====
+Prints a JSON Schema for config.toml / .api.toml. With taplo or "Even Better
+TOML", save it and point a file at it with a first line such as:
+
+  api config schema > ~/.config/api/schema.json
+  #:schema file:///Users/you/.config/api/schema.json
+
+Usage:
+  api config schema [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api config set =====
+Set a value in the project file (if there is one) or the global file
+
+Usage:
+  api config set <key> <value> [flags]
+
+Examples:
+  api config set env.dev.url https://api.dev.example.com
+  api config set env.dev.token_env API_TOKEN_DEV
+  api config set defaults.timeout 30s --global
+  api config set alias.me "gql -e v2/user 'query { me { id } }' .data.me"
+
+Flags:
+      --global   the global file (~/.config/api/config.toml)
+      --local    the project file (.api.toml)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api config show =====
+Show the effective (merged) config
+
+Usage:
+  api config show [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api config validate =====
+Reads the global and project config (or the files you name) and reports, per
+file: parse errors with the key and line (never the value), half-built logins, urls
+that are not http(s), a default_env that names nothing, and settings a project
+file may not use (they are valid TOML but ignored: token_env, @env: logins,
+token_cache, unsafe aliases). Exits 1 when there is an error; warnings alone exit 0.
+Offline: it never reads the Keychain.
+
+Usage:
+  api config validate [file...] [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api del =====
+DELETE a path
+
+Usage:
+  api del <path> [.filter] [-- curl args] [flags]
+
+Aliases:
+  del, delete
+
+Examples:
+  api del /users '.data[0].id'
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api diff =====
+Sends one read-only request to two configured envs ([env.<name>] in
+the api config) and prints a structural diff, with jq-style paths. Each env
+uses its own token (token_env, or the shell session's token for the env you are
+logged in to): one env's token is never sent to the other.
+
+Only GET and GraphQL queries are supported. Mutations and subscriptions are
+refused, because diff would run them against both envs.
+
+Exit status: 0 identical, 1 different (like diff(1)), other codes for errors.
+
+Usage:
+  api diff --envs a,b <path> [.filter]   |   diff --envs a,b --gql [-e endpoint] <query> [-V k=v] [.filter] [flags]
+
+Examples:
+  api diff --envs dev,thien /rest/v2/smart-content/<id> .data
+  api diff --envs dev,thien /rest/v2/smart-content '.data | length'
+  api diff --envs dev,thien --ignore .data.updatedAt --ignore .meta /rest/v2/x
+  api diff --envs dev,thien --gql -e v2/user 'query { me { id name } }' .data
+
+Flags:
+      --array-key string           match array elements by this field (e.g. id) instead of by position: a reordered list is not a difference
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+  -e, --endpoint string            (--gql) path appended to the GraphQL base, or a full URL
+      --envs api config show       the two envs to compare, e.g. dev,thien (from api config show)
+      --gql                        compare a GraphQL query instead of a GET
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+      --ignore stringArray         ignore a path and everything below it (repeatable), e.g. .data.updatedAt
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --json                       print the result as JSON (same exit status)
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -V, --var stringArray            (--gql) variable key=value or key:=json (repeatable)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api doctor =====
+Runs a set of offline checks and prints one line each. Exit 1 if anything
+fails; warnings alone exit 0. --online also tries the active base URL.
+
+Usage:
+  api doctor [flags]
+
+Flags:
+      --fix      chmod 600 the .env files that other users can read
+      --json     print the checks as JSON (same exit code)
+      --online   also GET the active base URL (5s limit)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api env =====
+Show, load or clear the API session (API_BASE_URL, API_TOKEN, ...)
+
+Usage:
+  api env [command]
+
+Available Commands:
+  clear       Unset API_BASE_URL, API_GRAPHQL_URL, API_TOKEN and API_ENV
+  example     Generate .env.example from your .env files, or check them for drift
+  init        Create .env.<suffix> from .env.example (mode 0600)
+  list        List the .env.<suffix> files in the project root
+  load        Load .env / .env.<suffix> from the project root into the shell
+  root        Print the project root (nearest directory with a .env or .git)
+  status      Show env, base URL and token prefix
+  use         Switch the shell to a configured [env.<name>] (base URL, GraphQL URL, token_env); no name = pick with fzf
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api env [command] --help" for more information about a command.
+
+===== api env clear =====
+Unset API_BASE_URL, API_GRAPHQL_URL, API_TOKEN and API_ENV
+
+Usage:
+  api env clear [flags]
+
+Flags:
+      --emit   print shell statements for eval
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api env example =====
+Reads the KEY NAMES of .env and .env.<suffix> in the project root and prints a
+.env.example. Values are blank. --keep-values keeps harmless ones, but keys that
+look secret (TOKEN, SECRET, PASSWORD, KEY, ...) and URLs with embedded
+credentials are always blank. Nothing is written unless you pass --write.
+
+--check compares every .env file with .env.example and lists, per file, the keys
+it is missing and the keys the example does not document. It exits 1 on drift.
+
+Usage:
+  api env example [flags]
+
+Flags:
+      --check         report drift between .env.* files and .env.example (exit 1)
+      --force         with --write: overwrite a different existing .env.example
+      --keep-values   keep harmless values (secret-looking keys and credential URLs stay blank)
+      --write         write .env.example instead of printing it
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api env init =====
+Create .env.<suffix> from .env.example (mode 0600)
+
+Usage:
+  api env init <suffix> [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api env list =====
+List the .env.<suffix> files in the project root
+
+Usage:
+  api env list [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api env load =====
+Finds the nearest directory with a .env or .git and loads .env (or
+.env.<suffix>) with allexport, so $VAR expansion inside the file works.
+
+The file is sourced by the shell itself, not parsed here, which keeps zsh
+semantics. --emit prints the statements for the shell to eval; the zsh "api"
+function does that for you.
+
+Usage:
+  api env load [suffix] [flags]
+
+Flags:
+      --emit   print shell statements for eval
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api env root =====
+Print the project root (nearest directory with a .env or .git)
+
+Usage:
+  api env root [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api env status =====
+Show env, base URL and token prefix
+
+Usage:
+  api env status [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api env use =====
+Switch the shell to a configured [env.<name>] (base URL, GraphQL URL, token_env); no name = pick with fzf
+
+Usage:
+  api env use [name] [flags]
+
+Flags:
+      --emit   print shell assignments for eval
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api form =====
+POST multipart (-F) or urlencoded (-d) form data
+
+Usage:
+  api form <path> [.filter] [-- curl args] [flags]
+
+Examples:
+  api form /upload -F file=@photo.jpg -F type=avatar
+  api form /login -d email=x@x.com -d password=secret
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+  -d, --data stringArray           urlencoded field key=value (repeatable)
+      --dry                        print the curl command instead of sending
+  -F, --form stringArray           multipart field key=value or key=@file (repeatable)
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api get =====
+GET a path
+
+Usage:
+  api get <path> [.filter] [-- curl args] [flags]
+
+Examples:
+  api get /users '.data[0].id'
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api gql =====
+GraphQL request against $API_GRAPHQL_URL (or $API_BASE_URL/graphql)
+
+Usage:
+  api gql [query|@file|-] [vars-json] [.filter] [-- curl args] [flags]
+
+Examples:
+  api gql 'query { me { id } }' '.data.me'
+  api gql -e v2/user 'query { me { id } }' '.data.me'
+  api gql 'query($id: ID!) { user(id: $id) { name } }' -V id=1 '.data'
+  api gql @queries/me.graphql
+  echo 'query { me { id } }' | api gql
+  api gql                   # on a terminal: pick the endpoint and the query with fzf
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+  -e, --endpoint string            path appended to the GraphQL base, or a full URL
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+      --pick                       choose the endpoint and the query with fzf, edit the generated query, then run it (default with no query on a terminal)
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --strict                     exit 4 when the response has GraphQL errors
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -V, --var stringArray            variable key=value or key:=json (repeatable)
+  -v, --verbose                    print request and response headers to stderr
+      --yes                        with --pick: do not ask before running a mutation
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api headers =====
+GET a path and print only the response headers
+
+Usage:
+  api headers <path> [flags]
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api history =====
+List recent requests (method, path, filter: never bodies or tokens)
+
+Usage:
+  api history [flags]
+  api history [command]
+
+Available Commands:
+  clear       Delete the history file
+
+Flags:
+  -n, --limit int   how many entries to show (default 20)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api history [command] --help" for more information about a command.
+
+===== api history clear =====
+Delete the history file
+
+Usage:
+  api history clear [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api json =====
+key=value is a string, key:=<json> is raw JSON (number, bool, null, array,
+object). Dotted keys nest ({"a":{"b":1}} from a.b:=1) unless --flat is set.
+
+A string value can be a reference, so a password never appears in the command
+line: password=@keychain:NAME, @env:NAME or @prompt (@@x is the literal "@x").
+
+Usage:
+  api json key=value... [flags]
+
+Examples:
+  api json name=cat age:=30 admin:=true tags:='["a","b"]'
+  api json user.name=cat user.id:=1 | api post /users
+
+Flags:
+  -c, --compact   one-line output
+      --flat      keep dots in keys instead of nesting
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api login =====
+Send credentials, pull the token out of the response with a jq path and
+export it as API_TOKEN.
+
+With no arguments, the login of the selected env is used: the [env.<name>.login]
+block of your global config, with credentials taken from value references
+(@keychain:NAME, @env:NAME, @prompt). Set it up once, then just run "api login":
+
+  api secret set upscale-dev        # asks once, stores in the Keychain
+  api config set env.dev.login.gql 'mutation($input: LoginInput!) { login(input: $input) { accessToken } }' --global
+  api config set env.dev.login.endpoint v2/auth --global
+  api config set env.dev.login.vars.input.username me@x.com --global
+  api config set env.dev.login.vars.input.password @keychain:upscale-dev --global
+  api login --env dev
+
+REST (default with a path): POST <path> with a JSON body; token path defaults to .data.token.
+GraphQL (--gql): send a login mutation like "api gql" does (same query / @file /
+stdin / -V handling, -e endpoint); token path defaults to .data.login.accessToken.
+-V values accept references too: -V input.password=@keychain:NAME.
+
+A child process cannot change its parent shell, so --emit prints the export
+statement for the shell to eval; the zsh "api" function does that for you.
+No bearer token is sent on the login call: a stale one can turn it into a 401.
+--dry shows the request with references unresolved and sends nothing.
+
+Usage:
+  api login [<path> [body] | --gql <mutation>] [.token-path] [flags]
+
+Examples:
+  api login                                  # configured login of the current env
+  api login --env thien
+  api login /auth/login '{"email":"x","password":"y"}' '.data.access_token'
+  api json email=x password=@keychain:dev | api login /auth/login '.data.access_token'
+  api login --gql -e v2/auth @login.graphql -V input.username=me@x.com -V input.password=@prompt
+
+Flags:
+      --columns strings             with --table: the columns to show, in order (a,b,c)
+  -c, --compact                     compact JSON output
+      --connect-timeout duration    connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+  -d, --data string                 request body; @file reads a file, - reads stdin
+      --dry                         print the curl command instead of sending
+      --emit export API_TOKEN=...   print export API_TOKEN=... for the shell to eval
+  -e, --endpoint string             (--gql) path appended to the GraphQL base, or a full URL
+      --gql                         GraphQL login: send a mutation instead of a REST body
+      --har string                  also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                 with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray          extra header, "Name: value" (repeatable)
+  -i, --include                     print the status line and response headers
+  -k, --insecure                    skip TLS certificate verification
+      --no-auth                     do not send the bearer token
+  -o, --output string               write the body to a file
+  -Q, --query stringArray           query parameter key=value (repeatable)
+  -R, --raw-body                    print the body untouched: no filter, no pretty-print
+  -r, --raw-output                  print string results without quotes (jq -r)
+      --retry int                   retry transport errors and 502/503/504 N times
+      --summary                     print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                       print an array of objects (or one object) as a table
+      --timeout duration            total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                 send your token to an absolute URL on another host (default: only to the active base URL)
+  -V, --var stringArray             variable key=value or key:=json (repeatable); values may be @keychain:NAME / @env:NAME / @prompt
+  -v, --verbose                     print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api logout =====
+Unsets API_TOKEN in this shell and deletes the token cached for the env
+(defaults.token_cache). With --env NAME, only that env's cached token and its
+token_env variable are forgotten; this shell's API_TOKEN stays unless NAME is
+the env the shell is on. --all forgets the cached token of every env in your
+config. Tokens cached for envs that are no longer in your config can be removed
+with: api secret rm token.<env>
+
+Like login, it changes your shell: run it through the zsh "api" function.
+
+Usage:
+  api logout [--env NAME] [--all] [flags]
+
+Flags:
+      --all    forget the cached token of every env in the config
+      --emit   print shell statements for eval
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api patch =====
+PATCH with a JSON body
+
+Usage:
+  api patch <path> [body] [.filter] [-- curl args] [flags]
+
+Examples:
+  api patch /users '.data[0].id'
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+  -d, --data string                request body; @file reads a file, - reads stdin
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api post =====
+POST a JSON body
+
+Usage:
+  api post <path> [body] [.filter] [-- curl args] [flags]
+
+Examples:
+  api post /users '.data[0].id'
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+  -d, --data string                request body; @file reads a file, - reads stdin
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api put =====
+PUT a JSON body
+
+Usage:
+  api put <path> [body] [.filter] [-- curl args] [flags]
+
+Examples:
+  api put /users '.data[0].id'
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+  -d, --data string                request body; @file reads a file, - reads stdin
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api run =====
+Runs a request from a .http file. <name> is looked up in .api/requests/ of the
+project (name.http), or give a path. Pick a request by name or number; a file with
+one request needs no selector. Variables: @var = value in the file, {{var}},
+--var k=v, {{base}} {{graphql}} {{token}} {{env}} from the session,
+{{$env API_NAME}} (API_* variables only), {{$uuid}}, {{$timestamp}}.
+
+Safety: a .http file can come from a repository, so {{token}} and the session
+bearer token are NOT sent to a host other than the active base URL, and a
+request that would send {{token}} / {{$env ...}} there is refused, unless you
+pass --trust-hosts.
+
+Usage:
+  api run [file|name] [request] [.filter] [flags]
+
+Examples:
+  api run --list                    # saved files in .api/requests
+  api run users --list              # requests in users.http
+  api run users "List users"
+  api run users 2 .data.id --var id=42
+  api run users --all --dry
+
+Flags:
+      --all                        run every request in the file, in order (stops at the first failure)
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --keep-going                 with --all: continue after a failure
+      --list                       list saved files, or the requests inside a file
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+      --var stringArray            set a {{variable}}: key=value (repeatable; beats @var in the file)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api schema =====
+With no subcommand it is a browser: pick an endpoint (from your config's
+endpoints), then browse its queries, mutations and types in fzf with a live
+preview. Enter prints the item; ctrl-e (or --edit) opens it in your editor
+($API_EDITOR, $VISUAL, $EDITOR, or defaults.editor in the global config; nvim
+when none is set).
+
+Introspection helpers. <endpoint> is appended to the GraphQL base like
+"api gql -e"; with --prefix v2/ a bare name such as "user" means v2/user.
+
+  api schema names user --prefix v2/        # query and mutation names
+  api schema type user Query --prefix v2/   # fields (with args), input fields or enum values
+  api schema dump user --prefix v2/         # the whole introspection result
+  api schema sync --prefix v2/ user auth    # cache schemas for fzf / television (~/.cache/ugql)
+
+Usage:
+  api schema [endpoint] [flags]
+  api schema [command]
+
+Available Commands:
+  dump        Print the whole introspection result (the __schema object)
+  endpoints   List the endpoints configured for the env (endpoints = [...])
+  names       List the query and mutation names of an endpoint
+  sync        Fetch every service's schema into the local cache the fzf / tv browsers read
+  type        Show the fields (with args), input fields or enum values of a type
+  types       List the type names of an endpoint, root query/mutation types first
+
+Flags:
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --edit                       open the picked item in your editor instead of printing it
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+      --prefix string              prepended to a bare endpoint name (e.g. "v2/")
+  -Q, --query stringArray          query parameter key=value (repeatable)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api schema [command] --help" for more information about a command.
+
+===== api schema dump =====
+Print the whole introspection result (the __schema object)
+
+Usage:
+  api schema dump <endpoint> [flags]
+
+Flags:
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+      --prefix string              prepended to a bare endpoint name (e.g. "v2/")
+  -Q, --query stringArray          query parameter key=value (repeatable)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api schema endpoints =====
+List the endpoints configured for the env (endpoints = [...])
+
+Usage:
+  api schema endpoints [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api schema names =====
+List the query and mutation names of an endpoint
+
+Usage:
+  api schema names <endpoint> [flags]
+
+Flags:
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+      --prefix string              prepended to a bare endpoint name (e.g. "v2/")
+  -Q, --query stringArray          query parameter key=value (repeatable)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api schema sync =====
+Fetches each endpoint's schema (concurrently) into $UGQL_CACHE_DIR (default
+~/.cache/ugql) and rebuilds what the browsers read:
+
+  <endpoint>.json   the introspection result
+  index.txt         "<endpoint> <kind> <name>" lines (the list)
+  preview.jq        the detail program (jq -r --arg kind K --arg n N -f preview.jq FILE)
+  .env              the API_ENV the cache was fetched with
+
+With no endpoint, the env's "endpoints" from the config are used. Names become
+file names, so only letters, digits, _ - . are accepted (a config file cannot
+make this write outside the cache). Needs a login: this sends your token.
+
+Usage:
+  api schema sync [endpoint...] [flags]
+
+Flags:
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+      --prefix string              prepended to a bare endpoint name (e.g. "v2/")
+  -Q, --query stringArray          query parameter key=value (repeatable)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api schema type =====
+Show the fields (with args), input fields or enum values of a type
+
+Usage:
+  api schema type <endpoint> <Type> [flags]
+
+Flags:
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+      --prefix string              prepended to a bare endpoint name (e.g. "v2/")
+  -Q, --query stringArray          query parameter key=value (repeatable)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api schema types =====
+List the type names of an endpoint, root query/mutation types first
+
+Usage:
+  api schema types <endpoint> [flags]
+
+Flags:
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -k, --insecure                   skip TLS certificate verification
+      --kinds                      prefix each name with its kind (query, mutation, type, input, enum...)
+      --no-auth                    do not send the bearer token
+      --prefix string              prepended to a bare endpoint name (e.g. "v2/")
+  -Q, --query stringArray          query parameter key=value (repeatable)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api secret =====
+Secrets live in the operating system's credential store, never in a file this
+tool writes. Refer to one anywhere a value is accepted as @keychain:NAME:
+
+  api secret set upscale-dev --for https://api.dev.upscale.technology
+  api login --gql ... -V input.password=@keychain:upscale-dev
+
+--for binds the secret to the server(s) it may be sent to, like a browser's
+password manager: a repo's config, an alias or a pasted command cannot make it go
+anywhere else. A project config may only use bound secrets.
+
+Entries are namespaced (the Keychain service is "api:NAME"), so this tool cannot
+read or overwrite another application's items.
+
+Usage:
+  api secret [command]
+
+Available Commands:
+  bind        Add servers an existing secret may be sent to (the value is not re-entered)
+  list        List the secrets you stored (names and where they may go; never values)
+  rm          Delete a stored secret
+  set         Store a secret (hidden prompt, or one line from stdin with --stdin)
+  show        Check that a secret exists and where it may go (its value is printed only with --reveal)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api secret [command] --help" for more information about a command.
+
+===== api secret bind =====
+Add servers an existing secret may be sent to (the value is not re-entered)
+
+Usage:
+  api secret bind <name> <url>... [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api secret list =====
+List the secrets you stored (names and where they may go; never values)
+
+Usage:
+  api secret list [flags]
+
+Flags:
+      --prune   forget names that are gone from the credential store
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api secret rm =====
+Delete a stored secret
+
+Usage:
+  api secret rm <name> [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api secret set =====
+Store a secret (hidden prompt, or one line from stdin with --stdin)
+
+Usage:
+  api secret set <name> [--for <url>]... [flags]
+
+Flags:
+      --for stringArray   a server this secret may be sent to, e.g. https://api.dev.example.com (repeatable)
+      --stdin             read the secret from one line of stdin (for scripts; never from an argument)
+      --unbind            replace the secret AND remove its server binding
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api secret show =====
+Check that a secret exists and where it may go (its value is printed only with --reveal)
+
+Usage:
+  api secret show <name> [flags]
+
+Flags:
+      --reveal   print the value to stdout
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api time =====
+Request timing breakdown: dns / connect / tls / ttfb / total
+
+Usage:
+  api time <path> [flags]
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api watch =====
+GET a path every interval until Ctrl+C
+
+Usage:
+  api watch <interval> <path> [.filter] [flags]
+
+Examples:
+  api watch 3 /jobs/123 '.data.status'
+
+Flags:
+      --columns strings            with --table: the columns to show, in order (a,b,c)
+  -c, --compact                    compact JSON output
+      --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --dry                        print the curl command instead of sending
+      --har string                 also write the exchange to a HAR file (appends; secrets are masked)
+      --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
+  -H, --header stringArray         extra header, "Name: value" (repeatable)
+  -i, --include                    print the status line and response headers
+  -k, --insecure                   skip TLS certificate verification
+      --no-auth                    do not send the bearer token
+  -o, --output string              write the body to a file
+  -Q, --query stringArray          query parameter key=value (repeatable)
+  -R, --raw-body                   print the body untouched: no filter, no pretty-print
+  -r, --raw-output                 print string results without quotes (jq -r)
+      --retry int                  retry transport errors and 502/503/504 N times
+      --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
+  -t, --table                      print an array of objects (or one object) as a table
+      --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
