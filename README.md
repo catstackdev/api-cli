@@ -23,18 +23,19 @@ api doctor          # checks the whole setup (--json for scripts and CI)
 If `api` ever dies silently right after an install (exit 137, no message, while
 `bin/api` still runs): on Apple silicon, copying a new binary **over** one that
 already ran leaves a stale code signature and the OS kills it. `make install`
-avoids this by replacing the file (copy to `api.new`, then `mv`); if you copy by hand,
-`rm` the old one first.
-Requires Go 1.24+. The binary is static (`CGO_ENABLED=0`), so it cross-compiles
-for Termux (`GOOS=linux GOARCH=arm64 make build`).
+avoids this by replacing the file (copy to `api.new`, then `mv`); if you copy by
+hand, `rm` the old one first. Requires Go 1.24+. The binary is static
+(`CGO_ENABLED=0`), so it cross-compiles for Termux
+(`GOOS=linux GOARCH=arm64 make build`).
 
 ## Use it from Claude Code (agent skill)
 
-`skills/api-cli.md` is a [Claude Code skill](https://docs.claude.com/en/docs/claude-code/skills)
-that teaches an agent to drive `api`: how to keep a session across its one-shot
+`skills/api-cli.md` is a
+[Claude Code skill](https://docs.claude.com/en/docs/claude-code/skills) that
+teaches an agent to drive `api`: how to keep a session across its one-shot
 shells, never print a token, check a request with `--dry` first, read `.http`
-checks, and what each exit code means. It needs `api` on your `PATH` (`make
-install`, above).
+checks, and what each exit code means. It needs `api` on your `PATH`
+(`make install`, above).
 
 ```zsh
 make install-skill                  # for you: ~/.claude/skills/api-cli/SKILL.md
@@ -42,13 +43,14 @@ make install-skill SKILL_DIR=/path/to/project/.claude/skills/api-cli   # one pro
 ```
 
 Without `make`: copy `skills/api-cli.md` to `<skills dir>/api-cli/SKILL.md`
-(`~/.claude/skills` for every project, `<project>/.claude/skills` for one). Start a
-new Claude Code session if `/api-cli` is not listed yet. After updating this repo,
-run the same command again; to remove it, delete the `api-cli` directory.
+(`~/.claude/skills` for every project, `<project>/.claude/skills` for one).
+Start a new Claude Code session if `/api-cli` is not listed yet. After updating
+this repo, run the same command again; to remove it, delete the `api-cli`
+directory.
 
-The skill only describes the commands: it grants no access. Claude Code still asks
-before running them, and the tool's own rules (a token goes to the active server
-only, no secrets in config) apply unchanged.
+The skill only describes the commands: it grants no access. Claude Code still
+asks before running them, and the tool's own rules (a token goes to the active
+server only, no secrets in config) apply unchanged.
 
 ## Quick start
 
@@ -86,7 +88,7 @@ api diff --envs dev,thien /users/1 .data
 | `config path\|show\|get\|set\|init\|edit`        | global + project config                           |
 | `diff --envs a,b <path>`                         | same request to two envs, structural JSON diff    |
 | `run <file\|name> [request]`                     | saved requests from `.http` files                 |
-| `openapi [sync\|list\|pick\|show]`                | index an OpenAPI JSON spec; pick, edit, save, run |
+| `openapi [sync\|list\|pick\|show]`               | index an OpenAPI JSON spec; pick, edit, save, run |
 | `history`, `again [N]`                           | recent requests; repeat a GET                     |
 | `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)              |
 | `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                 |
@@ -147,8 +149,6 @@ Three ways to say which server you talk to, in this precedence:
 3. the session variables (`API_BASE_URL`, `API_TOKEN`, `API_ENV`, ...)
 4. `default_env` from config, only while no session base URL is set
 
-```zsh
-api env load staging      # source .env.staging (zsh does the sourcing, so $VAR works)
 `api env use` / `api env load` only set variables **in your shell**. A program
 that starts `api` without them (a television channel, Neovim, a script, CI) sees
 only this last one, so a project that wants them to work sets `default_env` in
@@ -157,6 +157,8 @@ its `.api.toml`. `api config init --local` writes the line commented out
 `api config set default_env <name> --local` warns when no env of that name is
 defined, and `api config validate` reports it too.
 
+```zsh
+api env load staging      # source .env.staging (zsh does the sourcing, so $VAR works)
 api env use thien         # switch to [env.thien] (plain assignments, not exported)
 api env use               # no name: pick one with fzf
 api login /auth/login '{"u":"x","p":"y"}'
@@ -172,9 +174,9 @@ failed login.
 ## Login without typing
 
 Credentials never go in a config file, a command line or your shell history.
-Store the password once in the macOS Keychain (on Linux, the Secret Service:
-see below), **bound to the server it may be
-sent to**, describe the login once, then just run `api login`.
+Store the password once in the macOS Keychain (on Linux, the Secret Service: see
+below), **bound to the server it may be sent to**, describe the login once, then
+just run `api login`.
 
 ```zsh
 api secret set upscale-dev --for https://api.dev.upscale.technology   # hidden prompt
@@ -269,6 +271,8 @@ included, to wherever the server points); `--trust-hosts` follows it.
 ```bash
 api gql                  # fzf: endpoint (the last one first) -> query or mutation, with a preview
 api gql -e user          # skip the endpoint step
+api gql -e user --item 'query me'   # skip the query step too (implies --pick): for a
+                         # television channel or an editor that already chose the item
 ```
 
 It generates a ready operation (variables declared from the arguments, a
@@ -279,8 +283,6 @@ to run, quit without saving to cancel**. Put the variables as JSON below the
 `changes data on <server>: run it? [y/N]`; `--yes` skips that. The equivalent
 `api gql -e … '…'` line is printed so a good query can become an alias;
 variables are left out of it when a name looks like a secret.
-api gql -e user --item 'query me'   # skip the query step too (implies --pick): for a
-                         # television channel or an editor that already chose the item
 `--item '<query|mutation> <name>'` takes the operation you already chose
 (anything that is not a query or mutation of the endpoint is an error);
 everything after that, the save-to-run rule and the mutation question included,
@@ -292,6 +294,8 @@ helpers):
 ```bash
 api schema names user --prefix v2/        # query and mutation names
 api schema type user Query --prefix v2/   # fields with args / input fields / enum values
+api schema type user Tag --prefix v2/ --expand   # ... and what its fields point at: category: TagCategory
+                                                 # also lists TagCategory's fields (one level, an extra "related" key)
 api schema dump user --prefix v2/         # the whole introspection result
 api schema sync --prefix v2/ user auth    # concurrent; rebuilds ~/.cache/ugql for fzf / `tv ugql`
 ```
@@ -302,10 +306,9 @@ and the television channel already read (the previews stay `jq`: they run in
 subprocesses). With no endpoint it uses the env's `endpoints` from the config;
 names become file names, so only letters, digits and `_ - .` are accepted.
 `--dry` prints the requests and writes nothing.
-api schema type user Tag --prefix v2/ --expand   # ... and what its fields point at: category: TagCategory
-                                                 # also lists TagCategory's fields (one level, an extra "related" key)
 
-**Stay logged in: `token_cache` and `auto_login`** (both off; global config only):
+**Stay logged in: `token_cache` and `auto_login`** (both off; global config
+only):
 
 ```bash
 api config set defaults.token_cache true --global   # a new shell needs no login
@@ -320,9 +323,9 @@ repo's `.env` that reuses the env name cannot aim it elsewhere. A rejected token
 (401) is replaced from the cache (another terminal may have logged in) and then,
 with `auto_login`, by running the env's login again. Automatic login uses
 `@keychain:` references only (never a prompt or `@env:`), skips `--token`,
-`-H Authorization` and `--no-auth`, and runs once per command. This shell keeps its
-old `API_TOKEN` until you run `api login`: the next call just recovers again.
-`api env status` shows the cached token's expiry for JWTs.
+`-H Authorization` and `--no-auth`, and runs once per command. This shell keeps
+its old `API_TOKEN` until you run `api login`: the next call just recovers
+again. `api env status` shows the cached token's expiry for JWTs.
 
 `api secret`: `set NAME [--for URL]... [--stdin]` (replacing the password keeps
 its binding; `--unbind` drops it), `bind NAME URL...`, `show NAME` (the value
@@ -333,11 +336,11 @@ servers; never values; it reads a names-only index in
 (`api:NAME`) and sent to the store over stdin, never as an argument. On Linux
 the store is the freedesktop Secret Service (GNOME Keyring, KWallet, KeePassXC)
 through `secret-tool` (package `libsecret-tools`), needing a desktop or
-`dbus-run-session` session; entries have the attributes `service=api:NAME
-account=api`. Without a store (no `secret-tool`, other systems) use `@env:` or
-`@prompt`. `--dry` shows the request with
-secrets masked and never reads the Keychain or sends. A literal password in
-`login.vars` (or via `config set`) is rejected.
+`dbus-run-session` session; entries have the attributes
+`service=api:NAME account=api`. Without a store (no `secret-tool`, other
+systems) use `@env:` or `@prompt`. `--dry` shows the request with secrets masked
+and never reads the Keychain or sends. A literal password in `login.vars` (or
+via `config set`) is rejected.
 
 `upscale <env>` prefers the Keychain entry `upscale-<env>` when it exists; run
 `upscale-save <env>` once to move the password out of `up-scale.sh` (it binds it
@@ -442,10 +445,10 @@ there:
 
 A broken config is ignored with a warning; `api doctor` shows the error.
 `api config validate` checks the files in one go (errors with key and line,
-half-built logins, urls, and settings a project file may not use, which are valid
-TOML but ignored). `api config schema` prints a JSON Schema for editors (taplo /
-Even Better TOML: `#:schema file:///path/to/schema.json`); a test keeps it equal
-to what the parser accepts.
+half-built logins, urls, and settings a project file may not use, which are
+valid TOML but ignored). `api config schema` prints a JSON Schema for editors
+(taplo / Even Better TOML: `#:schema file:///path/to/schema.json`); a test keeps
+it equal to what the parser accepts.
 
 **Where your token and passwords can go** (all enforced and tested):
 
@@ -486,16 +489,16 @@ Only key names are read. Values never reach the output unless you pass
 
 ## `.http` files: a short tour
 
-A `.http` file is a plain-text list of requests. It is the format of the JetBrains
-HTTP client and the VS Code REST Client, so the same file works in your editor and
-from the shell. The files in [`examples/`](examples/) run as they are (change the
-paths to match your API):
+A `.http` file is a plain-text list of requests. It is the format of the
+JetBrains HTTP client and the VS Code REST Client, so the same file works in
+your editor and from the shell. The files in [`examples/`](examples/) run as
+they are (change the paths to match your API):
 
-| File | Shows |
-| --- | --- |
-| [`users.http`](examples/users.http) | variables, a query string, JSON bodies, headers, filters, a body from a file |
-| [`chaining.http`](examples/chaining.http) | using one response in the next request |
-| [`checks.http`](examples/checks.http) | `# @assert` response checks for CI |
+| File                                      | Shows                                                                        |
+| ----------------------------------------- | ---------------------------------------------------------------------------- |
+| [`users.http`](examples/users.http)       | variables, a query string, JSON bodies, headers, filters, a body from a file |
+| [`chaining.http`](examples/chaining.http) | using one response in the next request                                       |
+| [`checks.http`](examples/checks.http)     | `# @assert` response checks for CI                                           |
 
 ```zsh
 api run examples/users.http --list         # what is in the file
@@ -524,21 +527,25 @@ Content-Type: application/json
 GET /users/{{create.response.body.data.id}}
 ```
 
-- `@limit = 10` is a file variable, used as `{{limit}}`; `--var limit=5` beats it.
-- `###` starts a request and the rest of the line is its name (`api run file "List users"`).
-- `# @filter` is the default jq filter, `# @name` names a request so a later one can
-  read its response, `# @assert` checks it. Other `#` and `//` lines are comments.
-- A path that starts with `/` goes to the **active server** with your session token;
-  a full URL on another host gets none.
-- Headers follow the request line, then a blank line, then the body (`< ./file.json`
-  reads it from a file next to the `.http` file).
+- `@limit = 10` is a file variable, used as `{{limit}}`; `--var limit=5` beats
+  it.
+- `###` starts a request and the rest of the line is its name
+  (`api run file "List users"`).
+- `# @filter` is the default jq filter, `# @name` names a request so a later one
+  can read its response, `# @assert` checks it. Other `#` and `//` lines are
+  comments.
+- A path that starts with `/` goes to the **active server** with your session
+  token; a full URL on another host gets none.
+- Headers follow the request line, then a blank line, then the body
+  (`< ./file.json` reads it from a file next to the `.http` file).
 - Keep your own files in `.api/requests/` so `api run <name>` finds them, or let
   `api openapi` write one for you from your API's spec.
 
-**Try them for real** (the [examples README](examples/README.md) has the full recipe).
-`examples/server.py` is a tiny in-memory API (Python 3, no
-installs) with the endpoints the examples call, and `examples/.api.toml` points an
-env called `local` at it. Run `api` from inside `examples/` and it finds that config:
+**Try them for real** (the [examples README](examples/README.md) has the full
+recipe). `examples/server.py` is a tiny in-memory API (Python 3, no installs)
+with the endpoints the examples call, and `examples/.api.toml` points an env
+called `local` at it. Run `api` from inside `examples/` and it finds that
+config:
 
 ```zsh
 python3 examples/server.py        # terminal 1: http://127.0.0.1:8787, logs each request
@@ -549,10 +556,10 @@ api run chaining.http --all       # create, then fetch and delete the id it retu
 api run checks.http --all         # 7 assertions; exit 0
 ```
 
-From another directory, add the server instead: `api --base http://127.0.0.1:8787 run
-examples/users.http --all`. The server never deletes its seed users, so the files can
-be re-run. In Neovim, start `nvim` inside `examples/` so a terminal inherits that
-directory.
+From another directory, add the server instead:
+`api --base http://127.0.0.1:8787 run examples/users.http --all`. The server
+never deletes its seed users, so the files can be re-run. In Neovim, start
+`nvim` inside `examples/` so a terminal inherits that directory.
 
 The next sections list every variable, the response capture and the checks.
 
@@ -562,10 +569,11 @@ The next sections list every variable, the response capture and the checks.
 each with its own token, and prints a jq-path diff (`~` changed, `+` added, `-`
 removed). `--ignore .data.updatedAt` skips paths; `--gql` compares a query.
 `--array-key id` matches the items of an array by that field instead of by
-position (a reordered list is not a difference; changes read `.data[id=42].name`;
-an array it cannot match falls back to position). `--json` prints the result for
-scripts. GET and GraphQL queries only: mutations and subscriptions are refused
-because they would run against both envs. Exit 0 identical, 1 different.
+position (a reordered list is not a difference; changes read
+`.data[id=42].name`; an array it cannot match falls back to position). `--json`
+prints the result for scripts. GET and GraphQL queries only: mutations and
+subscriptions are refused because they would run against both envs. Exit 0
+identical, 1 different.
 
 **`api run <name|file> [request]`** runs requests from a `.http` file (the
 JetBrains / VS Code REST Client format). Names resolve to
@@ -576,17 +584,18 @@ A file can come from a repository, so the session token and `{{token}}` /
 `{{$env ...}}` are **not** sent to a host other than the active base URL unless
 you pass `--trust-hosts`.
 
-*Use a response in the next request.* Name a request with `# @name login`, then
-refer to it: `{{login.response.body.data.token}}`, `{{login.response.body.items[0].id}}`,
-`{{login.response.headers.X-Req-Id}}`, `{{login.response.status}}`. The request
-you ask for runs its dependencies first (once, silently); `--all` runs everything
-in order; `--dry` shows `<placeholders>` and sends nothing. The response is server
-data in a file that may come from a repo, so a captured value is **data, never a
-template** (it cannot pull in `{{token}}`), counts as a secret (not sent to
-another host without `--trust-hosts`), is limited to key / `[n]` paths (no jq), may
-not contain line breaks in a URL or header, and is never stored.
+_Use a response in the next request._ Name a request with `# @name login`, then
+refer to it: `{{login.response.body.data.token}}`,
+`{{login.response.body.items[0].id}}`, `{{login.response.headers.X-Req-Id}}`,
+`{{login.response.status}}`. The request you ask for runs its dependencies first
+(once, silently); `--all` runs everything in order; `--dry` shows
+`<placeholders>` and sends nothing. The response is server data in a file that
+may come from a repo, so a captured value is **data, never a template** (it
+cannot pull in `{{token}}`), counts as a secret (not sent to another host
+without `--trust-hosts`), is limited to key / `[n]` paths (no jq), may not
+contain line breaks in a URL or header, and is never stored.
 
-*Check the response (CI).* `# @assert <jq>` lines above the request line (any
+_Check the response (CI)._ `# @assert <jq>` lines above the request line (any
 number) say what the response must look like. The expression runs on one object,
 `{status, headers, body, ms}` (header names lower-case, a non-JSON body is a
 string), and passes only when its first result is `true`:
@@ -599,16 +608,16 @@ string), and passes only when its first result is `true`:
 POST /users
 ```
 
-Each assertion prints `✓` or `✗ <expr> — <reason> (line N)` on stderr; the body is
-printed as usual. A failure exits **3** (`--all` stops at the first failing
+Each assertion prints `✓` or `✗ <expr> — <reason> (line N)` on stderr; the body
+is printed as usual. A failure exits **3** (`--all` stops at the first failing
 request, `--keep-going` runs on and ends with a summary). When a request has
 `@assert`, the assertions decide: `# @assert .status == 404` passes for a 404,
 and a request without them still fails with 22. A bad expression is a usage
-error (exit 2) before any request is sent, and `--dry` skips them. Failure
-lines show the expression and a reason (`false`, `null`, `not a boolean
-(string)`, `evaluation error`, `timed out`), never the response, so CI logs do
-not collect tokens. `{{...}}` is not expanded inside assertions. VS Code and
-JetBrains ignore the unknown comment, so the same file works there.
+error (exit 2) before any request is sent, and `--dry` skips them. Failure lines
+show the expression and a reason (`false`, `null`, `not a boolean (string)`,
+`evaluation error`, `timed out`), never the response, so CI logs do not collect
+tokens. `{{...}}` is not expanded inside assertions. VS Code and JetBrains
+ignore the unknown comment, so the same file works there.
 
 **`api history`, `api again [N]`** list and repeat recent requests. Only the
 method, path and filter are stored (never bodies, headers or tokens; a path with
@@ -619,9 +628,9 @@ a secret-looking query parameter is not recorded), so only GET can be repeated.
 devtools: credential headers, cookies, secret-looking JSON fields and query
 parameters are masked unless `--har-secrets`.
 
-**`api openapi sync|list`** teaches completion the endpoints your API really has.
-`sync` fetches an OpenAPI 3 / Swagger 2 document and keeps a small index of its
-method + path pairs (and summaries) for the **active server**:
+**`api openapi sync|list`** teaches completion the endpoints your API really
+has. `sync` fetches an OpenAPI 3 / Swagger 2 document and keeps a small index of
+its method + path pairs (and summaries) for the **active server**:
 
 ```bash
 api openapi sync                    # the env's `openapi` path, else tries /openapi.json, /swagger.json,
@@ -633,41 +642,43 @@ api openapi                         # fzf picker: edit the request, save to run,
 api get /us<TAB>                    # /users  List users   /users/{id}  Get a user
 ```
 
-**The picker (like `api gql`).** `api openapi` (or `api openapi pick [text]`) opens fzf
-over `METHOD  PATH  summary` with a preview of the summary and the body skeleton. Pick
-one and your editor opens a **`.http` request**: the method and path, `Accept`, and for
-POST/PUT/PATCH a JSON body skeleton built from the spec's request schema (required
-fields first). Fill in any `{placeholder}` in the path, add `# @assert` lines if you
-like, and **save to run; quit without saving to cancel**. Anything that changes data
-asks first, as `api gql` does:
+**The picker (like `api gql`).** `api openapi` (or `api openapi pick [text]`)
+opens fzf over `METHOD  PATH  summary` with a preview of the summary and the
+body skeleton. Pick one and your editor opens a **`.http` request**: the method
+and path, `Accept`, and for POST/PUT/PATCH a JSON body skeleton built from the
+spec's request schema (required fields first). Fill in any `{placeholder}` in
+the path, add `# @assert` lines if you like, and **save to run; quit without
+saving to cancel**. Anything that changes data asks first, as `api gql` does:
 
 ```
 ✱ POST /users changes data on http://localhost:3000: run it? [y/N]
 ```
 
-What you **saved** decides whether to ask (a picked GET you edited into a DELETE asks;
-a GET never does). After you confirm, the request is kept as `.api/requests/<name>.http`
-(never overwriting an earlier one: `-2`, `-3`, ...), so `api run <name>` repeats it
-later. `--no-save` keeps nothing, `--yes` skips the question, `--dry` shows the curl,
-and `--print` only prints the command (`api post /users '{}'`) with no editor. It
-needs fzf and a synced index; `api openapi list` works without fzf.
+What you **saved** decides whether to ask (a picked GET you edited into a DELETE
+asks; a GET never does). After you confirm, the request is kept as
+`.api/requests/<name>.http` (never overwriting an earlier one: `-2`, `-3`, ...),
+so `api run <name>` repeats it later. `--no-save` keeps nothing, `--yes` skips
+the question, `--dry` shows the curl, and `--print` only prints the command
+(`api post /users '{}'`) with no editor. It needs fzf and a synced index;
+`api openapi list` works without fzf.
 
-`sync` needs no configuration: it only needs a base URL (`api env load`, `--env` or
-`--base`) and tries the usual locations. If your spec lives somewhere else, say so
-once in the config and `sync` stops guessing: `api config set env.local.openapi
-/docs/spec.json` (a **path** on that env's server, never a URL), then
-`api --env local openapi sync` (or after `api env use local` / `api login --env local`).
-`api config init` writes the commented example in both templates.
+`sync` needs no configuration: it only needs a base URL (`api env load`, `--env`
+or `--base`) and tries the usual locations. If your spec lives somewhere else,
+say so once in the config and `sync` stops guessing:
+`api config set env.local.openapi /docs/spec.json` (a **path** on that env's
+server, never a URL), then `api --env local openapi sync` (or after
+`api env use local` / `api login --env local`). `api config init` writes the
+commented example in both templates.
 
 The document is fetched with the normal request pipeline (your token goes to the
 active base URL only). The raw spec is **not** kept: only an index of sanitised
 strings (control characters dropped, bounded sizes and counts) is written to
-`~/.cache/api/openapi/<scheme>_<host>.json` (owner-only; `$API_OPENAPI_CACHE_DIR`
-overrides), one file per server, so a spec is only ever offered for the server it
-came from. Completion reads that one file: it stays offline. **Only JSON is read**;
-for a YAML spec fetch its JSON form, or convert it (`yq -o=json spec.yaml > spec.json`)
-and use `--file`. Other formats can be added as one more decoder in
-`internal/openapi`.
+`~/.cache/api/openapi/<scheme>_<host>.json` (owner-only;
+`$API_OPENAPI_CACHE_DIR` overrides), one file per server, so a spec is only ever
+offered for the server it came from. Completion reads that one file: it stays
+offline. **Only JSON is read**; for a YAML spec fetch its JSON form, or convert
+it (`yq -o=json spec.yaml > spec.json`) and use `--file`. Other formats can be
+added as one more decoder in `internal/openapi`.
 
 ## Output
 
@@ -714,16 +725,16 @@ to the binary on each call, so they never leak into other child processes.
 ## Exit codes
 
 `0` ok · `1` generic / `diff` found differences · `2` usage · `3` a `# @assert`
-failed · `4` GraphQL errors (`--strict`) · `5` bad jq filter · `22` HTTP >= 400 (body is still printed) ·
-`28` timeout · `7` connect failed · `6` DNS failed. `api get ... && echo ok`
-works.
+failed · `4` GraphQL errors (`--strict`) · `5` bad jq filter · `22` HTTP >= 400
+(body is still printed) · `28` timeout · `7` connect failed · `6` DNS failed.
+`api get ... && echo ok` works.
 
 ## Completion
 
 `api <TAB>` completes commands, flags and:
 
-- the first argument of `get`/`post`/...: the operations of the synced OpenAPI spec for
-  that method (with their summaries), then recently requested paths
+- the first argument of `get`/`post`/...: the operations of the synced OpenAPI
+  spec for that method (with their summaries), then recently requested paths
   (`~/.local/state/api/history`)
 - `--env`, `env use`, `diff --envs`: the envs in config; `config get|set`: keys
 - `env load`: the `.env.<suffix>` files of the project
