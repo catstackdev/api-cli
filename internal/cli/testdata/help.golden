@@ -1467,6 +1467,7 @@ Usage:
 Flags:
       --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
       --dry                        print the curl command instead of sending
+      --expand                     also show the types its fields point at, one level ("category: TagCategory" -> what a TagCategory is)
   -H, --header stringArray         extra header, "Name: value" (repeatable)
   -k, --insecure                   skip TLS certificate verification
       --no-auth                    do not send the bearer token

@@ -360,25 +360,9 @@ func (t Type) body() []string {
 // television previews still run with jq: a test compares the two.
 func (s Schema) Detail(kind, name string) ([]string, error) {
 	if kind == "query" || kind == "mutation" {
-		root := ""
-		if kind == "query" && s.QueryType != nil {
-			root = s.QueryType.Name
-		} else if kind == "mutation" && s.MutationType != nil {
-			root = s.MutationType.Name
-		}
-		rt, ok := s.FindType(root)
-		if !ok {
-			return nil, fmt.Errorf("no %s type in this schema", kind)
-		}
-		var f *Field
-		for i := range rt.Fields {
-			if rt.Fields[i].Name == name {
-				f = &rt.Fields[i]
-				break
-			}
-		}
-		if f == nil {
-			return nil, fmt.Errorf("no %s named %q", kind, name)
+		f, err := s.rootField(kind, name)
+		if err != nil {
+			return nil, err
 		}
 		out := []string{f.Signature(), "", "returns " + f.Type.Base()}
 		if t, ok := s.FindType(f.Type.Base()); ok {

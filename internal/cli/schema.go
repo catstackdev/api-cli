@@ -198,12 +198,16 @@ func (a *app) schemaNamesCmd() *cobra.Command {
 func (a *app) schemaTypeCmd() *cobra.Command {
 	o := &reqOpts{}
 	var prefix string
+	var expand bool
 	cmd := &cobra.Command{
 		Use:               "type <endpoint> <Type>",
 		Short:             "Show the fields (with args), input fields or enum values of a type",
 		Args:              cobra.ExactArgs(2),
 		ValidArgsFunction: a.schemaEndpointArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if expand {
+				return a.schemaTypeExpanded(cmd.Context(), o, prefix, args[0], args[1])
+			}
 			varsJSON, err := json.Marshal(map[string]string{"n": args[1]})
 			if err != nil {
 				return err
@@ -235,7 +239,38 @@ func (a *app) schemaTypeCmd() *cobra.Command {
 		},
 	}
 	a.bindSchemaFlags(o, cmd, &prefix)
+	cmd.Flags().BoolVar(&expand, "expand", false, `also show the types its fields point at, one level ("category: TagCategory" -> what a TagCategory is)`)
 	return cmd
+}
+
+// schemaTypeExpanded is `schema type --expand`: it needs the whole schema (the types
+// the fields point at are not known until it is read), so it asks for that once.
+func (a *app) schemaTypeExpanded(ctx context.Context, o *reqOpts, prefix, endpoint, name string) error {
+	spec, resp, err := a.introspect(ctx, o, schemaEndpoint(a.effectivePrefix(prefix), endpoint), schema.SchemaQuery, "{}")
+	if err != nil {
+		return err
+	}
+	if o.dry {
+		fmt.Fprintln(a.io.Out, a.curlLine(spec, nil))
+		return nil
+	}
+	raw, err := dataObject(resp, "__schema")
+	if err != nil {
+		return err
+	}
+	s, err := schema.Parse(raw)
+	if err != nil {
+		return &ExitError{Code: exitGraphQL, Msg: "✗ introspection failed for " + endpoint + ": " + err.Error()}
+	}
+	t, ok := s.FindType(name)
+	if !ok {
+		return &ExitError{Code: exitGeneric, Msg: fmt.Sprintf("✗ no type %q on %s", name, endpoint)}
+	}
+	out, err := schema.Pretty(s.Expand(t))
+	if err != nil {
+		return err
+	}
+	return a.printJSON(o, out)
 }
 
 func (a *app) schemaTypesCmd() *cobra.Command {

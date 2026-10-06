@@ -294,6 +294,8 @@ and the television channel already read (the previews stay `jq`: they run in
 subprocesses). With no endpoint it uses the env's `endpoints` from the config;
 names become file names, so only letters, digits and `_ - .` are accepted.
 `--dry` prints the requests and writes nothing.
+api schema type user Tag --prefix v2/ --expand   # ... and what its fields point at: category: TagCategory
+                                                 # also lists TagCategory's fields (one level, an extra "related" key)
 
 **Stay logged in: `token_cache` and `auto_login`** (both off; global config only):
 

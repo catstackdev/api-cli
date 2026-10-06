@@ -201,6 +201,7 @@ func (a *app) schemaPick(ctx context.Context, o *reqOpts, endpoint, prefix strin
 // preview command the picker hands to fzf (hidden: not for typing).
 func (a *app) schemaShowCmd() *cobra.Command {
 	var file string
+	var expand bool
 	cmd := &cobra.Command{
 		Use:    "show --file <schema.json> <kind> <name>",
 		Short:  "Print the detail of one item of a saved schema (used by the picker preview)",
@@ -222,11 +223,19 @@ func (a *app) schemaShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if expand {
+				rel, err := s.Related(args[0], args[1])
+				if err != nil {
+					return err
+				}
+				detail = append(detail, rel...)
+			}
 			fmt.Fprintln(a.io.Out, strings.Join(detail, "\n"))
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&file, "file", "", "the saved schema (api schema dump > file)")
+	cmd.Flags().BoolVar(&expand, "expand", false, "also show the types its fields point at, one level (what a television preview wants)")
 	_ = cmd.MarkFlagRequired("file")
 	return cmd
 }
