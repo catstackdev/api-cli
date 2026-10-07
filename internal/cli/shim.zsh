@@ -25,7 +25,7 @@ function _api::run() {
   }
   # Per-env tokens (config: token_env = "API_TOKEN_<NAME>") are forwarded too.
   local -a fwd=(API_BASE_URL="${API_BASE_URL-}" API_GRAPHQL_URL="${API_GRAPHQL_URL-}"
-    API_TOKEN="${API_TOKEN-}" API_ENV="${API_ENV-}" API_SHIM=@CONTRACT@) # marker for `api doctor`
+    API_TOKEN="${API_TOKEN-}" API_ENV="${API_ENV-}" API_ENV_FROM="${API_ENV_FROM-}" API_SHIM=@CONTRACT@) # marker for `api doctor`
   local v
   for v in ${(k)parameters[(I)API_TOKEN_*]}; do
     fwd+=("$v=${(P)v}")

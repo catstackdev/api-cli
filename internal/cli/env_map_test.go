@@ -83,7 +83,7 @@ func TestEnvMappingRules(t *testing.T) {
 
 	// nothing recognisable: the output is exactly the old behaviour
 	r = load("FOO=1\nBAR=2\n", "")
-	if strings.Count(strings.TrimSpace(r.out), ";") != 3 || strings.Contains(r.err, "←") {
+	if strings.Count(strings.TrimSpace(r.out), ";") != 4 || strings.Contains(r.err, "←") {
 		t.Fatalf("no candidates, no extra statements: %q / %q", r.out, r.err)
 	}
 

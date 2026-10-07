@@ -21,7 +21,7 @@ function _api::run() {
     return 127
   }
   local -a fwd=("API_BASE_URL=${API_BASE_URL-}" "API_GRAPHQL_URL=${API_GRAPHQL_URL-}"
-    "API_TOKEN=${API_TOKEN-}" "API_ENV=${API_ENV-}" "API_SHIM=@CONTRACT@") # marker for `api doctor`
+    "API_TOKEN=${API_TOKEN-}" "API_ENV=${API_ENV-}" "API_ENV_FROM=${API_ENV_FROM-}" "API_SHIM=@CONTRACT@") # marker for `api doctor`
   local v
   for v in $(compgen -v API_TOKEN_); do
     fwd+=("$v=${!v}")

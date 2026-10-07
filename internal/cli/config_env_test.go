@@ -212,7 +212,7 @@ token_env = "API_TOKEN_THIEN"
 url = "https://plain.example"
 `)
 	r := run(t, "", "env", "use", "thien", "--emit")
-	want := `API_BASE_URL='https://thien.example'; API_GRAPHQL_URL='https://thien.example/graphql'; API_ENV='thien'; API_TOKEN="$API_TOKEN_THIEN"`
+	want := `API_BASE_URL='https://thien.example'; API_GRAPHQL_URL='https://thien.example/graphql'; API_ENV='thien'; API_ENV_FROM=toml; API_TOKEN="$API_TOKEN_THIEN"`
 	if r.code != 0 || strings.TrimSpace(r.out) != want {
 		t.Fatalf("\n got: %q\nwant: %q", strings.TrimSpace(r.out), want)
 	}

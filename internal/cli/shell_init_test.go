@@ -30,7 +30,7 @@ func TestEmittingCommandsArePinnedToTheContract(t *testing.T) {
 	if got := emittingPaths(root); !reflect.DeepEqual(got, want) {
 		t.Fatalf("shell-emitting commands changed: %v\nwant %v\nraise shimContract (doctor.go) together with this list", got, want)
 	}
-	if shimContract != "1" {
+	if shimContract != "2" {
 		t.Fatalf("shimContract is %q: update the pin in this test with the list above", shimContract)
 	}
 }

@@ -140,7 +140,10 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     (doctor.go; stamped into `API_SHIM`) so `api doctor` flags a shell still
     running the old shim (a shell keeps the old functions in memory). Being eval'd
     is decided by the annotation, never by a flag named `--emit`
-    (`TestEveryEmitFlagIsAnnotatedAndViceVersa`). `TestWrapperBehaviour` drives the
+    (`TestEveryEmitFlagIsAnnotatedAndViceVersa`). `API_ENV_FROM` (`toml` for `env use`,
+    `file:.env.x` for `env load`, set by them, forwarded by the shims, contract 2) is
+    DISPLAY ONLY for `env status`: nothing decides from it, it is validated before
+    being shown, and a profile is still claimed only by `sameServer`. `TestWrapperBehaviour` drives the
     generated zsh and bash (also `/bin/bash` 3.2) against a stub binary.
 13. **`diff` runs a request against two envs: GET and GraphQL queries only.**
     `isReadOnlyQuery` is deliberately conservative. Never relax it to allow

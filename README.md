@@ -348,8 +348,10 @@ again. `api env status` shows the cached token's expiry for JWTs.
 `default_env`, or the shell session) and which file defines the profile
 (global, project). A profile is called a match only when it describes the same
 server as the shell (same origin), never because the env name is the same.
-`env load` and `env use` both just set `API_*`, so status cannot tell them
-apart: it reports "shell session".
+`env load` and `env use` record which of them set the session
+(`API_ENV_FROM`, display only), so status says `.env.local (api env load)` or
+`toml env.local (api env use)`. A shell started before that shows what the
+variables alone can prove.
 
 `api secret`: `set NAME [--for URL]... [--stdin]` (replacing the password keeps
 its binding; `--unbind` drops it), `bind NAME URL...`, `show NAME` (the value

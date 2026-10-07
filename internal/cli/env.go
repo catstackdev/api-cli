@@ -77,7 +77,7 @@ func (a *app) envCmd() *cobra.Command {
 				switch {
 				case strings.Contains(label, "NOT toml"):
 					code = ui.Yellow
-				case strings.Contains(label, "same server as the shell"):
+				case (strings.Contains(label, "same server as") || strings.Contains(label, "(api env use)")):
 					code = ui.Green
 				}
 				fmt.Fprintf(a.io.Out, "          %s %s\n", ui.Paint("source:", ui.Dim, color), ui.Paint(label, code, color))
@@ -173,8 +173,9 @@ function does that for you.`,
 			for _, n := range notes {
 				a.say("  " + n)
 			}
-			line := fmt.Sprintf("set -o allexport; source %s; set +o allexport; %s",
-				session.Quote(file), session.Export(session.EnvName, name))
+			line := fmt.Sprintf("set -o allexport; source %s; set +o allexport; %s; %s=%s",
+				session.Quote(file), session.Export(session.EnvName, name),
+				session.EnvFrom, session.Quote("file:"+filepath.Base(file)))
 			if len(stmts) > 0 {
 				line += "; " + joinStmts(stmts)
 			}
@@ -205,7 +206,7 @@ function does that for you.`,
 				return &ExitError{Code: exitUsage, Msg: "✗ use the zsh `api env clear` function, or eval \"$(api env clear --emit)\""}
 			}
 			a.say("✓ cleared")
-			fmt.Fprintln(a.io.Out, session.Unset(session.EnvBaseURL, session.EnvGraphQLURL, session.EnvToken, session.EnvName))
+			fmt.Fprintln(a.io.Out, session.Unset(session.EnvBaseURL, session.EnvGraphQLURL, session.EnvToken, session.EnvName, session.EnvFrom))
 			return nil
 		},
 	}

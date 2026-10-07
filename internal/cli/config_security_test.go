@@ -152,7 +152,7 @@ func TestLoginUnderEnvSwitchesTheWholeSession(t *testing.T) {
 	}
 	lines := strings.Split(strings.TrimSpace(r.out), "\n")
 	if len(lines) != 3 ||
-		lines[0] != "API_BASE_URL='"+srv.URL+"'; API_GRAPHQL_URL=''; API_ENV='thien'" ||
+		lines[0] != "API_BASE_URL='"+srv.URL+"'; API_GRAPHQL_URL=''; API_ENV='thien'; API_ENV_FROM=toml" ||
 		lines[1] != "export API_TOKEN='THIEN-NEW'" ||
 		lines[2] != "API_TOKEN_THIEN='THIEN-NEW'" {
 		t.Fatalf("login --env must switch the session and set the per-env token:\n%s", r.out)

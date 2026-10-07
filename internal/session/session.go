@@ -13,6 +13,9 @@ const (
 	EnvGraphQLURL = "API_GRAPHQL_URL"
 	EnvToken      = "API_TOKEN"
 	EnvName       = "API_ENV"
+	// EnvFrom records HOW the session was set ("toml" for `env use`, "file:.env.x"
+	// for `env load`). Display only: nothing is decided from it.
+	EnvFrom = "API_ENV_FROM"
 )
 
 // Session is the request context of the current shell.
@@ -21,6 +24,7 @@ type Session struct {
 	GraphQLURL string
 	Token      string
 	Name       string
+	From       string
 }
 
 // FromEnv reads the session from the process environment.
@@ -34,6 +38,7 @@ func FromLookup(lookup func(string) (string, bool)) Session {
 		GraphQLURL: get(EnvGraphQLURL),
 		Token:      get(EnvToken),
 		Name:       get(EnvName),
+		From:       get(EnvFrom),
 	}
 }
 

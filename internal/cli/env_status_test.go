@@ -84,3 +84,32 @@ func TestStatusColour(t *testing.T) {
 		t.Fatalf("-M must give plain output:\n%q", off)
 	}
 }
+
+// `env load` and `env use` set the same variables; API_ENV_FROM is how status
+// tells them apart. It is display only: a profile is still claimed only for the
+// same server.
+func TestStatusTellsEnvLoadFromEnvUse(t *testing.T) {
+	base := func(from string) map[string]string {
+		return map[string]string{"API_ENV": "dev", "API_BASE_URL": "https://api.dev.example", "API_ENV_FROM": from}
+	}
+	cases := []struct{ from, want string }{
+		{"toml", `toml env.dev · global`},
+		{"toml", `(api env use)`},
+		{"file:.env.dev", `.env.dev (api env load) · same server as toml env.dev`},
+	}
+	for _, c := range cases {
+		if out := statusEnv(t, devProfile, base(c.from)); !strings.Contains(out, c.want) {
+			t.Fatalf("from=%q: missing %q in:\n%s", c.from, c.want, out)
+		}
+	}
+	// a file marker that is not a plain .env name is ignored, never shown
+	if out := statusEnv(t, devProfile, base("file:../../etc/passwd")); strings.Contains(out, "passwd") {
+		t.Fatalf("an unvalidated marker was displayed:\n%s", out)
+	}
+	// the marker never makes a profile match a different server
+	env := base("toml")
+	env["API_BASE_URL"] = "https://evil.example"
+	if out := statusEnv(t, devProfile, env); strings.Contains(out, "(api env use)") || !strings.Contains(out, "NOT toml env.dev") {
+		t.Fatalf("a marker must not claim a profile for another server:\n%s", out)
+	}
+}

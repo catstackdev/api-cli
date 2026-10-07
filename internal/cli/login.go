@@ -217,10 +217,11 @@ No bearer token is sent on the login call: a stale one can turn it into a 401.
 					// Logged in to another env than the shell's: switch the whole
 					// session, or the next plain call would send this token to the
 					// previous env's server.
-					fmt.Fprintf(a.io.Out, "%s=%s; %s=%s; %s=%s\n",
+					fmt.Fprintf(a.io.Out, "%s=%s; %s=%s; %s=%s; %s=%s\n",
 						session.EnvBaseURL, session.Quote(rs.BaseURL),
 						session.EnvGraphQLURL, session.Quote(rs.GraphQLURL),
-						session.EnvName, session.Quote(rs.Name))
+						session.EnvName, session.Quote(rs.Name),
+						session.EnvFrom, "toml")
 					a.say("  (switched the shell to env " + rs.Name + ")")
 				}
 				fmt.Fprintln(a.io.Out, session.Export(session.EnvToken, token))

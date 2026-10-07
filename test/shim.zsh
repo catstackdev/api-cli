@@ -96,7 +96,7 @@ eval "$(command api shell-init)"  # the shim ships inside the binary
 unset API_BASE_URL API_GRAPHQL_URL API_TOKEN API_ENV API_TOKEN_DEV API_TOKEN_THIEN
 
 reset() {
-  unset API_BASE_URL API_GRAPHQL_URL API_TOKEN API_ENV API_TOKEN_DEV API_TOKEN_THIEN
+  unset API_BASE_URL API_GRAPHQL_URL API_TOKEN API_ENV API_ENV_FROM API_TOKEN_DEV API_TOKEN_THIEN
   typeset +x API_BASE_URL 2>/dev/null
 }
 
@@ -105,6 +105,7 @@ api env use dev >/dev/null 2>&1
 expect "env use sets API_ENV" "${API_ENV:-}" "dev"
 expect "env use sets API_BASE_URL" "${API_BASE_URL:-}" "http://127.0.0.1:$DEV_PORT"
 expect "env use leaves API_ENV unexported" "${(t)API_ENV}" "scalar"
+expect "env use records where it came from" "${API_ENV_FROM:-}" "toml"
 
 print "── a global flag before the subcommand must still change the shell"
 LOGIN='{"u":1}'

@@ -393,10 +393,11 @@ func (a *app) useEnvCmd() *cobra.Command {
 				token = `"$` + p.TokenEnv + `"`
 			}
 			a.say("✓ env " + name + "  " + p.URL)
-			fmt.Fprintf(a.io.Out, "%s=%s; %s=%s; %s=%s; %s=%s\n",
+			fmt.Fprintf(a.io.Out, "%s=%s; %s=%s; %s=%s; %s=%s; %s=%s\n",
 				session.EnvBaseURL, session.Quote(p.URL),
 				session.EnvGraphQLURL, session.Quote(p.GraphQL),
 				session.EnvName, session.Quote(name),
+				session.EnvFrom, "toml",
 				session.EnvToken, token)
 			return nil
 		},

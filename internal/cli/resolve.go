@@ -17,6 +17,7 @@ import (
 	"cybercat/api/internal/secretstore"
 	"cybercat/api/internal/session"
 	"path/filepath"
+	"regexp"
 	"time"
 )
 
@@ -88,16 +89,34 @@ func shortPath(p string) string {
 	return p
 }
 
-// shellLabel says where a session that came from the API_* variables most
-// likely originates. The binary only sees the variables (`env load` and `env
-// use` both just set them), so it claims only what it can prove: a profile is
-// named when it describes the same server (sameServer), never because the env
-// NAME matches (that name is attacker-controllable); a .env file is only a
-// "probably", from its existence, and its contents are never read here.
+// envFile is what API_ENV_FROM may say after "file:": the name of a .env file,
+// never a path.
+var envFile = regexp.MustCompile(`^\.env(\.[A-Za-z0-9._-]+)?$`)
+
+// shellLabel says where a session that came from the API_* variables
+// originates. `env use` and `env load` record it in API_ENV_FROM ("toml" or
+// "file:.env.local"); the binary never reads a .env file's contents, so that
+// marker is DISPLAY ONLY and a profile is still claimed only when it describes
+// the same server (sameServer), never because the env NAME or the marker says
+// so (both are attacker-controllable). Without a marker (a shell started
+// before it existed) it falls back to what the variables alone can show.
 func (a *app) shellLabel(s session.Session) string {
 	p, ok := a.cfg.Env[s.Name]
+	match := ok && sameServer(p, s)
+	file, isFile := strings.CutPrefix(s.From, "file:")
+	if isFile && !envFile.MatchString(file) {
+		isFile, s.From = false, ""
+	}
 	switch {
-	case ok && sameServer(p, s):
+	case isFile && match:
+		return fmt.Sprintf("%s (api env load) · same server as %s", file, a.profileLabel(s.Name))
+	case isFile:
+		return file + " (api env load)"
+	case s.From == "toml" && match:
+		return a.profileLabel(s.Name) + " (api env use)"
+	case s.From == "toml" && ok:
+		return fmt.Sprintf("shell variables · NOT toml env.%s (it points at another server)", s.Name)
+	case match:
 		return a.profileLabel(s.Name) + " · same server as the shell"
 	case ok:
 		return fmt.Sprintf("shell variables · NOT toml env.%s (it points at another server)", s.Name)

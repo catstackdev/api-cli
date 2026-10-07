@@ -25,7 +25,7 @@ import (
 // which commands the shim must eval (the `mutating` case in src/api.sh). The
 // shim exports it as API_SHIM. Raise it, and the value in src/api.sh, together
 // whenever a command that changes the parent shell is added.
-const shimContract = "1"
+const shimContract = "2"
 
 // shimNewer reports whether a shim marker is a higher contract than ours. A
 // marker that is not a number counts as older: it predates the numbering.
