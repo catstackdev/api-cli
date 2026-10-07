@@ -68,6 +68,7 @@ Like login, it changes your shell: run it through the zsh "api" function.`,
 		},
 	}
 	cmd.Flags().BoolVar(&emit, "emit", false, "print shell statements for eval")
+	markShellEmit(cmd)
 	cmd.Flags().BoolVar(&all, "all", false, "forget the cached token of every env in the config")
 	return cmd
 }

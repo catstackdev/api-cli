@@ -15,14 +15,14 @@ import (
 
 func exampleFiles(t *testing.T) []string {
 	t.Helper()
-	files, err := filepath.Glob(filepath.Join("..", "..", "examples", "*.http"))
+	files, err := filepath.Glob(filepath.Join(repoRoot, "examples", "*.http"))
 	if err != nil || len(files) < 3 {
 		t.Fatalf("examples/*.http: found %v (err %v), want at least 3", files, err)
 	}
 	return files
 }
 
-func example(name string) string { return filepath.Join("..", "..", "examples", name) }
+func example(name string) string { return filepath.Join(repoRoot, "examples", name) }
 
 func TestExamplesParseAndDryRun(t *testing.T) {
 	for _, f := range exampleFiles(t) {

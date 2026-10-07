@@ -156,6 +156,7 @@ function does that for you.`,
 		},
 	}
 	load.Flags().BoolVar(&emit, "emit", false, "print shell statements for eval")
+	markShellEmit(load)
 
 	var clearEmit bool
 	clear := &cobra.Command{
@@ -172,6 +173,7 @@ function does that for you.`,
 		},
 	}
 	clear.Flags().BoolVar(&clearEmit, "emit", false, "print shell statements for eval")
+	markShellEmit(clear)
 
 	list := &cobra.Command{
 		Use:   "list",

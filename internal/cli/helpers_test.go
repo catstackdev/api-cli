@@ -18,9 +18,34 @@ type result struct {
 	out, err string
 }
 
+// repoRoot is the module root, taken while the working directory is still the
+// package directory. api walks UP from the cwd for a .api.toml, and this repo
+// ships one: a test that runs inside the source tree would pick it up.
+var repoRoot, _ = filepath.Abs("../..")
+
+// leaveSourceTree moves to an empty directory for the duration of one run when
+// the test still sits in the source tree; it returns the way back. A test that
+// chose its own directory (projectWith, t.Chdir) is left alone.
+func leaveSourceTree(t *testing.T) (restore func()) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil || (wd != repoRoot && !strings.HasPrefix(wd, repoRoot+string(filepath.Separator))) {
+		return func() {}
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	return func() { _ = os.Chdir(wd) }
+}
+
 // run executes the CLI with a clean API_* environment and the given stdin.
 func run(t *testing.T, stdin string, args ...string) result {
 	t.Helper()
+	defer leaveSourceTree(t)()
+	if !strings.HasPrefix(os.Getenv("HOME"), os.TempDir()) { // a test may pick its own
+		t.Setenv("HOME", t.TempDir()) // never the real ~/.config/api
+	}
+	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	if os.Getenv("API_CONFIG") == "" {
 		t.Setenv("API_CONFIG", filepath.Join(t.TempDir(), "none.toml"))

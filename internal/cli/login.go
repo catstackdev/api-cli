@@ -237,6 +237,7 @@ No bearer token is sent on the login call: a stale one can turn it into a 401.
 	a.bindFlags(o, cmd, true)
 	f := cmd.Flags()
 	f.BoolVar(&emit, "emit", false, "print `export API_TOKEN=...` for the shell to eval")
+	markShellEmit(cmd)
 	f.BoolVar(&gql, "gql", false, "GraphQL login: send a mutation instead of a REST body")
 	f.StringVarP(&endpoint, "endpoint", "e", "", "(--gql) path appended to the GraphQL base, or a full URL")
 	f.StringArrayVarP(&vars, "var", "V", nil, "variable key=value or key:=json (repeatable); values may be @keychain:NAME / @env:NAME / @prompt")

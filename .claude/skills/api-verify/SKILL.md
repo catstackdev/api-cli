@@ -1,11 +1,11 @@
 ---
 name: api-verify
 description:
-  Verify a change to the Go `api` CLI (personal-lib/api) or its zsh shim
-  (src/api.sh) end to end before calling it done: make check, then a fresh-shell
+  Verify a change to the Go `api` CLI (personal-lib/api) or its shell shims
+  (internal/cli/shim.zsh, shim.bash) end to end before calling it done: make check, then a fresh-shell
   test against a real local server covering login/eval, .env loading,
   unexported-variable forwarding and eval injection. Use after editing anything
-  under personal-lib/api/ or src/api.sh.
+  under personal-lib/api/.
 allowed-tools: Bash, Read
 argument-hint: '[what changed]'
 ---

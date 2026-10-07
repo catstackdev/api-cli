@@ -1645,16 +1645,25 @@ Global Flags:
       --token string        bearer token (default $API_TOKEN)
 
 ===== api shell-init =====
-Print the zsh wrapper that lets "api login" and "api env load|use|clear"
-change your current shell, and that loads tab completion. Add to ~/.zshrc:
+Print the wrapper that lets "api login" and "api env load|use|clear" change
+your current shell, plus tab completion. Add to ~/.zshrc (zsh is the default):
 
   eval "$(command api shell-init)"
 
-The binary works without it for requests, but commands that set session
-variables only print code; the wrapper evals it.
+or to ~/.bashrc (bash 3.2+; completion needs bash 4+ and bash-completion):
+
+  eval "$(command api shell-init bash)"
+
+--install appends that line to the rc file of the shell in $SHELL (zsh or bash;
+any other shell is refused) once. The binary works without the
+wrapper for requests, but the commands that set session variables only print
+code, and the wrapper evals it.
 
 Usage:
-  api shell-init [zsh] [flags]
+  api shell-init [zsh|bash] [flags]
+
+Flags:
+      --install   append the eval line to your shell's rc file (once)
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)

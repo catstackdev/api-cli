@@ -412,6 +412,7 @@ func (a *app) useEnvCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&emit, "emit", false, "print shell assignments for eval")
+	markShellEmit(cmd)
 	return cmd
 }
 

@@ -33,8 +33,11 @@ Read `personal-lib/api/CLAUDE.md` first (the gotchas section). Then:
    stderr; stdout stays pipeable.
 4. **State changes need `--emit`.** If the command must change the user's shell,
    print shell code only under `--emit`, build every value with
-   `session.Quote`/`Export`, and add the subcommand to the `case` in
-   `src/api.sh` (`mutating`). Anything else stays a plain pass-through.
+   `session.Quote`/`Export`, call `markShellEmit(cmd)` next to the flag, and
+   raise `shimContract` (doctor.go). The shims' command list is generated from
+   that mark, so do not edit `shim.zsh` or `shim.bash` for it; update the pin in
+   `TestEmittingCommandsArePinnedToTheContract`. Anything else stays a plain
+   pass-through.
 5. **Completion.** Set `ValidArgsFunction` (use `pathCompletion` for a path
    argument) and `RegisterFlagCompletionFunc` for flag values. It must be
    offline and fast.
@@ -53,5 +56,5 @@ Read `personal-lib/api/CLAUDE.md` first (the gotchas section). Then:
 8. **Verify.** Run the `api-verify` skill; `make check` alone is not enough for
    anything that touches the shim.
 
-Do not add `cget`-style functions to `src/api.sh` (they would shadow `curl.sh`,
-which `up-scale.sh` depends on).
+Do not add `cget`-style functions to the shims (`internal/cli/shim.zsh`,
+`shim.bash`): they would shadow `curl.sh`, which `up-scale.sh` depends on.
