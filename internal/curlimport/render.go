@@ -69,6 +69,10 @@ func Render(r Request, c Context) (Result, error) {
 			dropped = append(dropped, "a header with an invalid name")
 		case browserNoise[lower] || strings.HasPrefix(lower, "sec-"):
 			dropped = append(dropped, lower)
+		case lower == "cookie":
+			// a cookie is the BROWSER's session, not your API credential (that is
+			// {{token}}): it expires with the tab and would need its own variable
+			dropped = append(dropped, "cookie (browser session)")
 		case lower == "authorization":
 			scheme, rest, _ := strings.Cut(h.Value, " ")
 			switch {

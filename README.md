@@ -104,6 +104,7 @@ api diff --envs dev,thien /users/1 .data
 | `diff --envs a,b <path>`                         | same request to two envs, structural JSON diff    |
 | `run <file\|name> [request]`                     | saved requests from `.http` files                 |
 | `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)      |
+| `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)      |
 | `openapi [sync\|list\|pick\|show]`               | index an OpenAPI JSON spec; pick, edit, save, run |
 | `history`, `again [N]`                           | recent requests; repeat a GET                     |
 | `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)              |
@@ -586,6 +587,21 @@ From another directory, add the server instead:
 `api --base http://127.0.0.1:8787 run examples/users.http --all`. The server
 never deletes its seed users, so the files can be re-run. In Neovim, start
 `nvim` inside `examples/` so a terminal inherits that directory.
+
+**From a browser request.** `pbpaste | api import` turns a copied curl command
+(DevTools "Copy as cURL") into a `.http` request and prints it; it sends
+nothing and changes no session or config. Add `--out file.http` to append it to
+a file (never overwritten). The active server becomes `{{graphql}}` / `{{base}}`
+(so the file follows `api env use`), a GraphQL body is detected and named after
+its operation, a real bearer token becomes `{{token}}`, and every other
+secret-looking value (headers, JSON fields, query parameters) becomes
+`{{$env API_NAME}}`: it is read from your shell when the request runs and is
+never written to the file. Browser headers (`sec-*`, `user-agent`, `referer`,
+...) and the `Cookie` (the browser's session, not your API credential) are
+dropped and listed in a comment. Pass the command on stdin rather than as an
+argument: it contains quotes and tokens, and an argument lands in your shell
+history. Pipes, redirects, `-F`, `@file` and anything that would add a line or a
+`{{...}}` to the file are refused.
 
 The next sections list every variable, the response capture and the checks.
 

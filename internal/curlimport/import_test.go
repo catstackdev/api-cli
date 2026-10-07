@@ -73,13 +73,15 @@ func TestPlainRESTAndRealBearer(t *testing.T) {
 		"PUT https://other.example/api/items/1?access_token={{$env API_ACCESS_TOKEN}}&page=2",
 		"Authorization: Bearer {{token}}",
 		"X-Api-Key: {{$env API_X_API_KEY}}",
-		"Cookie: {{$env API_COOKIE}}",
 		`"secret_note": "{{$env API_SECRET_NOTE}}"`,
 		`"name": "a"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in:\n%s", want, out)
 		}
+	}
+	if !strings.Contains(out, "cookie (browser session)") || strings.Contains(out, "Cookie:") {
+		t.Fatalf("a cookie must be dropped, not turned into a variable:\n%s", out)
 	}
 	for _, bad := range []string{"abc123", "eyJ.real.token", "k-999", "sid=zzz"} {
 		if strings.Contains(out, bad) {

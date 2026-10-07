@@ -337,7 +337,8 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     a non-JSON multi-line body, `{{` anywhere (the runner would expand it),
     pipes/redirects. Every comment line is built through `comment()` (no `@`, so
     it can never become `# @assert`). Secrets are never copied: JSON fields,
-    headers, cookies and query parameters that look secret (`internal/secret`)
+    headers and query parameters that look secret (a Cookie header is dropped: it is the
+    browser's session, not your API credential) (`internal/secret`)
     become `{{$env API_NAME}}`, a bearer token `{{token}}`, `-u` a reference;
     the JSON is rewritten on the token stream to keep key order. The command
     only prints (or appends with `--out`, never overwrites) and never touches
