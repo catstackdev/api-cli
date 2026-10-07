@@ -56,7 +56,7 @@ e2e: build
 FUZZTIME ?= 10s
 FUZZ_TARGETS := config:FuzzSetInFile config:FuzzParseText httpfile:FuzzParse httpfile:FuzzInterpolateNeverLoopsForever \
 	envfile:FuzzExampleNeverContainsValues jwt:FuzzParse render:FuzzPathEvaluation secretref:FuzzParse \
-	schema:FuzzValidLabelStaysInsideTheCache schema:FuzzParse cli:FuzzSplitWords cli:FuzzWalkBody
+	schema:FuzzValidLabelStaysInsideTheCache schema:FuzzParse cli:FuzzSplitWords cli:FuzzWalkBody curlimport:FuzzParseRender
 
 fuzz:
 	@for t in $(FUZZ_TARGETS); do \

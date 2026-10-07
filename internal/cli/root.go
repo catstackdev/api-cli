@@ -301,6 +301,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.shellInitCmd(),
 		a.diffCmd(),
 		a.runCmd(),
+		a.importCmd(),
 		a.historyCmd(),
 		a.againCmd(),
 		a.jsonCmd(),

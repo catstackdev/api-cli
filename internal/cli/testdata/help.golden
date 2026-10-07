@@ -16,6 +16,7 @@ Available Commands:
   gql         GraphQL request against $API_GRAPHQL_URL (or $API_BASE_URL/graphql)
   headers     GET a path and print only the response headers
   history     List recent requests (method, path, filter: never bodies or tokens)
+  import      Convert a copied curl command into a .http request (prints; sends nothing)
   json        Build a JSON object from key=value / key:=json arguments
   login       Log in (REST or GraphQL) and store the token as API_TOKEN
   logout      Forget this shell's token and the cached token of the env
@@ -794,6 +795,46 @@ Delete the history file
 
 Usage:
   api history clear [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api import =====
+Reads a curl command (browser DevTools "Copy as cURL") from stdin, or from the
+argument, and prints one .http request for "api run".
+
+  pbpaste | api import
+  pbpaste | api import --out login.http      append to a file (never overwrites)
+
+Prefer stdin: a DevTools command contains single quotes, tokens and cookies, and
+an argument would end up in your shell history.
+
+What it does:
+  - the server becomes {{graphql}} / {{base}} when it is the active one, so the
+    file follows "api env use"; the matching envs are listed in a comment
+  - a GraphQL body ({"query": ...}) is detected and named after the operation
+  - Authorization: Bearer <token> becomes {{token}} (your session token); an
+    empty one ("Bearer null") is dropped
+  - anything secret-looking (headers, cookies, JSON fields, query parameters)
+    becomes {{$env API_NAME}}: read from your shell when the file runs, never
+    written to the file
+  - browser noise (sec-*, user-agent, referer, ...) is dropped and listed
+
+It refuses what would let pasted text change the file's structure (line breaks,
+{{ ... }}), pipes and redirects, and flags it cannot translate (-F, @file).
+
+Usage:
+  api import [curl command | -] [flags]
+
+Flags:
+      --out string   append the request to this .http file (created if missing, never overwritten)
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)

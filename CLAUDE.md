@@ -11,9 +11,9 @@ in `README.md`; this file is the architecture and the traps.
 A Go CLI that replaced the zsh helpers of the retired `src/curl.sh`:
 `api get|post|gql|login|logout|env|json|run|diff|schema|secret|config|doctor|...`,
 with cobra tab completion and a built-in jq (gojq). It is a standalone module
-(`cybercat/api`). Its zsh shim is embedded in the binary (`internal/cli/shim.zsh`,
-printed by `api shell-init`), so a user installs one file and adds
-`eval "$(command api shell-init)"` to `~/.zshrc`. The profile's `src/api.sh` is
+(`cybercat/api`). Its zsh shim is embedded in the binary (`internal/cli/shim.zsh`, and `shim.bash`;
+printed by `api shell-init`, which also embeds the completion script), so a user
+installs one file and runs `api shell-init --install`. The profile's `src/api.sh` is
 just that one line.
 `src/up-scale.sh` is built on it (login, `ugql-*` wrappers); its fzf pickers and
 `ugql-browse` stay shell and read the `~/.cache/ugql` files `api schema sync`
@@ -59,6 +59,7 @@ internal/session/         API_* env + shell quoting (Quote, Export, Unset)
 internal/schema/          GraphQL introspection: signatures, index lines, embedded preview.jq
 internal/jwt/             unverified exp/iat reader (display and cache expiry only)
 internal/assert/          `# @assert` evaluation (see gotcha 41)
+internal/curlimport/      curl command -> .http request (tokenise, mask secrets; see gotcha 43)
 internal/openapi/         OpenAPI JSON -> sanitised method+path index (pluggable Decoder; see gotcha 42)
 Makefile                  build / install / check / fuzz / cover / vuln / release / smoke
 test/                     shim.zsh (make e2e), smoke.zsh + smoke_srv.py (make smoke)
@@ -66,7 +67,9 @@ SECURITY.md               rule -> code symbol -> test tables (guarded by a test)
 examples/                 runnable .http files for the README tour, server.py (stub API) and
                           .api.toml to try them; internal/cli/examples_test.go dry-runs them all
 skills/api-cli.md         Claude Code skill for USERS of the tool (make install-skill)
-internal/cli/shim.zsh     the zsh shim (go:embed; `api shell-init` stamps shimContract in)
+internal/cli/shim.zsh     the zsh shim (go:embed); shim.bash is the bash twin; `api shell-init`
+                          stamps in shimContract, the --emit command list, the global flags
+                          and the completion script
   shell_init.go
 ../../src/api.sh          profile hook: evals `api shell-init` (auto-loaded by init.sh)
 ```
@@ -129,12 +132,16 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     line, never the value (the TOML library's own text quotes the source line:
     do not use `StrictMissingError.String()`).
 12. **`env use` emits plain assignments, not `export`** (session variables stay
-    unexported, like `upscale-login`), and drops the old token. Any new
-    shell-changing command must be added to the `mutating` case in `internal/cli/shim.zsh`
-    (which skips leading global flags like `--env x`, `-M` before the
-    subcommand) AND bump `shimContract` (doctor.go) together with the
-    `API_SHIM` marker (the shim file holds `@CONTRACT@`, stamped from `shimContract`), so `api doctor` flags a shell still
-    running the old shim.
+    unexported, like `upscale-login`), and drops the old token. A command whose
+    stdout is shell code gets `--emit` AND `markShellEmit(cmd)` (shell_init.go):
+    the shims' command list and global-flag list are GENERATED from the command
+    tree (`api shell-init`), never edited by hand, and `TestEmittingCommandsArePinnedToTheContract`
+    pins the list next to `shimContract`. Adding one means raising `shimContract`
+    (doctor.go; stamped into `API_SHIM`) so `api doctor` flags a shell still
+    running the old shim (a shell keeps the old functions in memory). Being eval'd
+    is decided by the annotation, never by a flag named `--emit`
+    (`TestEveryEmitFlagIsAnnotatedAndViceVersa`). `TestWrapperBehaviour` drives the
+    generated zsh and bash (also `/bin/bash` 3.2) against a stub binary.
 13. **`diff` runs a request against two envs: GET and GraphQL queries only.**
     `isReadOnlyQuery` is deliberately conservative. Never relax it to allow
     mutations, and keep each env's token separate.
@@ -320,6 +327,23 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     (`config.ValidateOpenAPIPath`); an explicit argument beats it, it beats the
     probes, and a configured path that 404s is an error, not a reason to probe.
 
+43. **`api import` turns pasted text into a .http file** (`internal/curlimport`,
+    `import.go`): the curl command is only TOKENISED, never run, expanded or
+    read from disk (`-d @file` is refused). Anything that could change the
+    file's structure is refused: any control character in a URL, header or body,
+    a non-JSON multi-line body, `{{` anywhere (the runner would expand it),
+    pipes/redirects. Every comment line is built through `comment()` (no `@`, so
+    it can never become `# @assert`). Secrets are never copied: JSON fields,
+    headers, cookies and query parameters that look secret (`internal/secret`)
+    become `{{$env API_NAME}}`, a bearer token `{{token}}`, `-u` a reference;
+    the JSON is rewritten on the token stream to keep key order. The command
+    only prints (or appends with `--out`, never overwrites) and never touches
+    the session, so it cannot conflict with `env load` / `env use`; servers are
+    matched by ORIGIN, never by env name (gotcha 27). `.http` has no
+    `@keychain:` references: `{{$env API_*}}` is what it can read. Tests are
+    mutation-checked (`TestLoginCurl`, `TestHostileInputIsRefused`);
+    `FuzzParseRender` is in `make fuzz`.
+
 ## Output rules (internal/ui)
 
 - Commands decide WHAT to print; `internal/ui` decides how it looks. Never write
@@ -346,7 +370,7 @@ make cover                 # coverage summary (cover.out is gitignored)
 make vuln                  # govulncheck (network; pinned version; not part of check)
 make release               # static binaries + SHA256SUMS in dist/ (gitignored)
 make e2e                   # shim end to end (34 checks), needs python3 + localhost
-make smoke                 # whole tool end to end (36 checks), see below
+make smoke                 # whole tool end to end (40 checks), see below
 ```
 
 - A fuzz failure writes its input to `testdata/fuzz/<Target>/`: keep that file,

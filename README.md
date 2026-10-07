@@ -14,14 +14,26 @@ envs, a two-env diff, saved requests and more. A small zsh wrapper, built into t
 ```zsh
 cd ~/.config/cybercat/profile/personal-lib/api
 make install        # builds bin/api and copies it to ~/.local/bin/api
-echo 'eval "$(command api shell-init)"' >> ~/.zshrc   # shell integration + completion
+api shell-init --install   # adds the eval line to the rc file of your $SHELL (zsh or bash), once
 exec zsh
 api doctor          # checks the whole setup (--json for scripts and CI)
 ```
 
-The binary is all you install: `api shell-init` prints the zsh wrapper (it is
-embedded), so there is no file to copy. Without that line, requests still work,
-but `login` and `env load|use|clear` cannot change your shell.
+The binary is all you install: `api shell-init` prints the shell wrapper and the
+completion script (both embedded), so there is no file to copy. The line it adds
+is `eval "$(command api shell-init)"` (`... shell-init bash` for bash 3.2+;
+bash completion needs bash 4+ and bash-completion). Without it, requests still
+work, but `login` and `env load|use|clear` cannot change your shell.
+
+Shell start-up runs the binary once. To skip that, cache its output and
+regenerate it only when the binary is newer (the same trick the profile uses for
+other tool inits):
+
+```zsh
+f=~/.cache/api-shell-init.zsh
+[[ -s $f && ! $commands[api] -nt $f ]] || command api shell-init >$f
+source $f
+```
 
 If `api` ever dies silently right after an install (exit 137, no message, while
 `bin/api` still runs): on Apple silicon, copying a new binary **over** one that
@@ -91,14 +103,15 @@ api diff --envs dev,thien /users/1 .data
 | `config path\|show\|get\|set\|init\|edit`        | global + project config                           |
 | `diff --envs a,b <path>`                         | same request to two envs, structural JSON diff    |
 | `run <file\|name> [request]`                     | saved requests from `.http` files                 |
+| `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)      |
 | `openapi [sync\|list\|pick\|show]`               | index an OpenAPI JSON spec; pick, edit, save, run |
 | `history`, `again [N]`                           | recent requests; repeat a GET                     |
 | `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)              |
 | `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                 |
 | `headers <path>`, `time <path>`                  | response headers / dns-tls-ttfb timing            |
 | `doctor [--online] [--fix]`                      | check binary, shim, completion, config, session   |
-| `shell-init`                                     | the zsh wrapper: `eval "$(command api shell-init)"` |
-| `completion zsh`                                 | the completion script (cached by the wrapper)     |
+| `shell-init [zsh\|bash] [--install]`             | the shell wrapper + completion; `--install` adds it to your rc |
+| `completion zsh`                                 | just the completion script (shell-init embeds it) |
 
 Any argument starting with `.` is a jq filter (`./file` and `../file` are
 paths). The last filter wins. User-defined `[alias]` entries from config also
@@ -330,6 +343,13 @@ with `auto_login`, by running the env's login again. Automatic login uses
 `-H Authorization` and `--no-auth`, and runs once per command. This shell keeps
 its old `API_TOKEN` until you run `api login`: the next call just recovers
 again. `api env status` shows the cached token's expiry for JWTs.
+
+`api env status` also says where each value came from (`--base`, `--env`,
+`default_env`, or the shell session) and which file defines the profile
+(global, project). A profile is called a match only when it describes the same
+server as the shell (same origin), never because the env name is the same.
+`env load` and `env use` both just set `API_*`, so status cannot tell them
+apart: it reports "shell session".
 
 `api secret`: `set NAME [--for URL]... [--stdin]` (replacing the password keeps
 its binding; `--unbind` drops it), `bind NAME URL...`, `show NAME` (the value

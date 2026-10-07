@@ -148,6 +148,10 @@ GET /users/{{create.response.body.data.id}}
   line: after code it is read as part of that line (or rejected).
 - A `/` path goes to the active server with the session token. A body can come from
   a file with `< ./payload.json` (relative to the `.http` file).
+- To start from a request copied in the browser: `pbpaste | api import` prints a
+  `.http` block (`--out file.http` appends). Pass the curl on stdin, never as an
+  argument. Secrets in it become `{{$env API_NAME}}`: export those variables
+  before running, and do not paste their values into the file.
 - Check a file you wrote with `api run file --all --dry`: it parses everything,
   prints each request and sends nothing. The repository's `examples/` directory has
   runnable files (`users.http`, `chaining.http`, `checks.http`).
@@ -168,7 +172,7 @@ GET /users/{{create.response.body.data.id}}
 | --------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `no base URL`                                       | nothing selected: pass `--base`/`--env` or `API_BASE_URL`                          |
 | `API_BASE_URL not set` right after `login --emit`   | add `export API_BASE_URL API_GRAPHQL_URL API_ENV` after the eval (see above)       |
-| `a child process cannot set your shell's variables` | used `env use`/`login` without the shim: use the `eval "$(... --emit)"` form above |
+| `a child process cannot set your shell's variables` | used `env use`/`login` without the shim: `eval "$(command api shell-init)"` loads it, or use the `eval "$(... --emit)"` form above |
 | 401 after `--env x`                                 | `--env` drops the session token: log in for that env                               |
 | `secrets ⚠ not in the Keychain` in `doctor`         | run `api secret set NAME --for <url>` (interactive; the user must do it)           |
 | completion shows no endpoints                       | run `api openapi sync` for this server                                             |
