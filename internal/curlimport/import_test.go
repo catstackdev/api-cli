@@ -41,7 +41,7 @@ func TestLoginCurl(t *testing.T) {
 		"graphql mutation login",
 		"env dev",
 		`"query": "mutation login($input: LoginInput!) { login(input: $input) { accessToken } }"`,
-		"sec-* (1)",
+		"sec-* ×1",
 		"POST {{graphql}}/auth",
 		"content-type: application/json",
 		`"password": "{{$env API_PASSWORD}}"`,
@@ -80,7 +80,7 @@ func TestPlainRESTAndRealBearer(t *testing.T) {
 			t.Fatalf("missing %q in:\n%s", want, out)
 		}
 	}
-	if !strings.Contains(out, "cookie (browser session)") || strings.Contains(out, "Cookie:") {
+	if !strings.Contains(out, "browser session (cookie)") || strings.Contains(out, "Cookie:") {
 		t.Fatalf("a cookie must be dropped, not turned into a variable:\n%s", out)
 	}
 	for _, bad := range []string{"abc123", "eyJ.real.token", "k-999", "sid=zzz"} {
@@ -201,5 +201,48 @@ func TestHeaderNamedLikeARequestIsDropped(t *testing.T) {
 	res := render(t, `curl https://x.test -H '###x: 1'`, Context{})
 	if strings.Count(res.HTTP, "###") != 1 || !strings.Contains(res.HTTP, "invalid name") {
 		t.Fatalf("the header must be dropped, not written:\n%s", res.HTTP)
+	}
+}
+
+func TestPolicyExplainsWhatIsLeftOutAndFlagsTheRest(t *testing.T) {
+	in := `curl https://x.test/a -H 'Accept: application/json, text/plain, */*' -H 'content-type: application/json' ` +
+		`-H 'X-Tenant: acme' -H 'X-Plain: 1' -H 'traceparent: 00-abc' -H 'Sec-Fetch-Mode: cors' -H 'If-None-Match: W/"1"' -d '{}'`
+	res := render(t, in, Context{Redundant: map[string]string{"x-tenant": "acme"}})
+	out := res.HTTP
+	for _, want := range []string{
+		"browser (sec-* ×1)", "cache (if-none-match)", "tracing (traceparent)",
+		"already sent by api (accept)", "already in your env (x-tenant)",
+		"# check: x-plain",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(strings.ToLower(out), "\nx-tenant:") || strings.Contains(out, "\nAccept:") {
+		t.Fatalf("a redundant header must not be written:\n%s", out)
+	}
+	if !strings.Contains(out, "X-Plain: 1") || !strings.Contains(out, "content-type: application/json") {
+		t.Fatalf("an unknown header is kept (flagged) and content-type stays:\n%s", out)
+	}
+}
+
+func TestMinimalDropsUnknownAndKeepOverrules(t *testing.T) {
+	in := `curl https://x.test/a -H 'X-Plain: 1' -H 'Origin: https://app.test' -H 'content-type: application/json' -d '{}'`
+	out := render(t, in, Context{Minimal: true}).HTTP
+	if strings.Contains(out, "X-Plain") || !strings.Contains(out, "not needed (--minimal) (x-plain)") {
+		t.Fatalf("--minimal must drop an unrecognised header and say so:\n%s", out)
+	}
+	out = render(t, in, Context{Minimal: true, Keep: map[string]bool{"x-plain": true, "origin": true}}).HTTP
+	if !strings.Contains(out, "X-Plain: 1") || !strings.Contains(out, "Origin: https://app.test") {
+		t.Fatalf("--keep must keep a header that would be dropped:\n%s", out)
+	}
+}
+
+// --keep overrules the DROP rules only: a kept cookie is still a secret and is
+// never written as a value.
+func TestKeepNeverBypassesSecretMasking(t *testing.T) {
+	out := render(t, `curl https://x.test/a -H 'Cookie: sid=zzz'`, Context{Keep: map[string]bool{"cookie": true}}).HTTP
+	if strings.Contains(out, "zzz") || !strings.Contains(out, "Cookie: {{$env API_COOKIE}}") {
+		t.Fatalf("a kept cookie must still be a reference:\n%s", out)
 	}
 }

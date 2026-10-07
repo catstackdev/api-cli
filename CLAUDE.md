@@ -346,7 +346,12 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     matched by ORIGIN, never by env name (gotcha 27). `.http` has no
     `@keychain:` references: `{{$env API_*}}` is what it can read. Tests are
     mutation-checked (`TestLoginCurl`, `TestHostileInputIsRefused`);
-    `FuzzParseRender` is in `make fuzz`.
+    `FuzzParseRender` is in `make fuzz`. Which headers matter is decided in ONE
+    place, `curlimport/policy.go` (`classify`): known noise groups with a reason,
+    redundant ones (api's own `Accept`, what the matching env profile already
+    sends), secret ones, and unknown ones that are kept but flagged (`--minimal`
+    drops them, `--keep` overrules a drop but never the secret masking). Add a
+    header to a group there, not in `render.go`.
 
 ## Output rules (internal/ui)
 

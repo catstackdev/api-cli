@@ -825,7 +825,11 @@ What it does:
   - anything secret-looking (headers, cookies, JSON fields, query parameters)
     becomes {{$env API_NAME}}: read from your shell when the file runs, never
     written to the file
-  - browser noise (sec-*, user-agent, referer, ...) is dropped and listed
+  - what is left out is listed WITH ITS REASON (browser, cache, tracing, the
+    browser's cookie, already sent by api, already in your env profile); a
+    header that is not recognised is kept but flagged ("# check:") so you can
+    delete it if the request works without it. --minimal drops those too, and
+    --keep NAME keeps one that was dropped
 
 It refuses what would let pasted text change the file's structure (line breaks,
 {{ ... }}), pipes and redirects, and flags it cannot translate (-F, @file).
@@ -834,7 +838,9 @@ Usage:
   api import [curl command | -] [flags]
 
 Flags:
-      --out string   append the request to this .http file (created if missing, never overwritten)
+      --keep strings   keep these headers even if they would be dropped (comma separated)
+      --minimal        also drop headers that are not recognised (keep only what is known to matter)
+      --out string     append the request to this .http file (created if missing, never overwritten)
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)

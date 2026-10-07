@@ -19,6 +19,13 @@ import (
 type Context struct {
 	Base, GraphQL string
 	EnvNames      []string
+	// Redundant holds the headers the matching env profile already sends
+	// (lower-cased name -> value): the same header in the request is not needed.
+	Redundant map[string]string
+	// Keep names headers (lower-cased) to keep even if they would be dropped.
+	Keep map[string]bool
+	// Minimal drops every header that is not recognised, instead of flagging it.
+	Minimal bool
 }
 
 // Result is the generated .http text plus what a caller may want to tell the
@@ -26,19 +33,10 @@ type Context struct {
 type Result struct {
 	HTTP    string
 	GraphQL bool
+	// Check lists headers that were kept but not recognised: the user may prune them.
+	Check []string
 	// Vars are the API_* variables the file expects (names only, never values).
 	Vars []string
-}
-
-// browserNoise are headers a browser adds that mean nothing to an API call.
-var browserNoise = map[string]bool{
-	"user-agent": true, "referer": true, "origin": true, "accept-language": true,
-	"accept-encoding": true, "connection": true, "host": true, "content-length": true,
-	"priority": true, "dnt": true, "cache-control": true, "pragma": true,
-	"upgrade-insecure-requests": true, "te": true,
-	// cache validators: sent from here they turn a 200 into an empty 304
-	"if-none-match": true, "if-modified-since": true, "if-match": true,
-	"if-unmodified-since": true, "if-range": true,
 }
 
 var (
@@ -61,34 +59,36 @@ func Render(r Request, c Context) (Result, error) {
 		vars[v] = true
 		return "{{$env " + v + "}}"
 	}
-	var dropped, notes []string
+	var notes []string
+	var dropped dropLog
 
-	// headers
 	var headers []Header
 	for _, h := range r.Headers {
 		lower := strings.ToLower(h.Name)
-		switch {
-		case !headerName.MatchString(h.Name):
-			dropped = append(dropped, "a header with an invalid name")
-		case browserNoise[lower] || strings.HasPrefix(lower, "sec-"):
-			dropped = append(dropped, lower)
-		case lower == "cookie":
-			// a cookie is the BROWSER's session, not your API credential (that is
-			// {{token}}): it expires with the tab and would need its own variable
-			dropped = append(dropped, "cookie (browser session)")
-		case lower == "authorization":
+		if !headerName.MatchString(h.Name) {
+			dropped.add("invalid name", "a header")
+			continue
+		}
+		d := classify(lower, h.Value, c)
+		switch d.v {
+		case drop:
+			dropped.add(d.group, lower)
+		case auth:
 			scheme, rest, _ := strings.Cut(h.Value, " ")
 			switch {
 			case strings.EqualFold(scheme, "bearer") && placeholderToken(rest):
-				dropped = append(dropped, "authorization (empty bearer token)")
+				dropped.add("auth", "authorization (empty bearer token)")
 			case strings.EqualFold(scheme, "bearer"):
 				headers = append(headers, Header{h.Name, "Bearer {{token}}"})
 				notes = append(notes, "authorization → {{token}} (your session token; run api login)")
 			default:
 				headers = append(headers, Header{h.Name, secretVar(h.Name)})
 			}
-		case secret.Name(h.Name):
+		case secretH:
 			headers = append(headers, Header{h.Name, secretVar(h.Name)})
+		case check:
+			headers = append(headers, Header{h.Name, h.Value})
+			res.Check = append(res.Check, lower)
 		default:
 			headers = append(headers, Header{h.Name, h.Value})
 		}
@@ -186,8 +186,11 @@ func Render(r Request, c Context) (Result, error) {
 		head += " · env " + strings.Join(c.EnvNames, ", ")
 	}
 	fmt.Fprintf(&b, "# %s\n", comment(head))
-	if len(dropped) > 0 {
-		fmt.Fprintf(&b, "# dropped: %s\n", comment(summarizeDropped(dropped)))
+	if !dropped.empty() {
+		fmt.Fprintf(&b, "# dropped: %s\n", comment(dropped.String()))
+	}
+	if len(res.Check) > 0 {
+		fmt.Fprintf(&b, "# check: %s (not recognised, kept: delete if the request works without it)\n", comment(strings.Join(unique(res.Check), ", ")))
 	}
 	for _, n := range notes {
 		fmt.Fprintf(&b, "# %s\n", comment(n))
@@ -362,23 +365,6 @@ func tidyGraphQL(q string) string {
 		return strings.TrimSpace(q)
 	}
 	return strings.Join(strings.Fields(q), " ")
-}
-
-// summarizeDropped groups the sec-* browser headers: "sec-* (3), referer, ...".
-func summarizeDropped(in []string) string {
-	sec := 0
-	var rest []string
-	for _, d := range unique(in) {
-		if strings.HasPrefix(d, "sec-") {
-			sec++
-			continue
-		}
-		rest = append(rest, d)
-	}
-	if sec > 0 {
-		rest = append([]string{fmt.Sprintf("sec-* (%d)", sec)}, rest...)
-	}
-	return strings.Join(rest, ", ")
 }
 
 func unique(in []string) []string {

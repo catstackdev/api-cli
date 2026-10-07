@@ -20,6 +20,8 @@ import (
 // `env load` / `env use`.
 func (a *app) importCmd() *cobra.Command {
 	var out string
+	var minimal bool
+	var keepHeaders []string
 	cmd := &cobra.Command{
 		Use:   "import [curl command | -]",
 		Short: "Convert a copied curl command into a .http request (prints; sends nothing)",
@@ -41,7 +43,11 @@ What it does:
   - anything secret-looking (headers, cookies, JSON fields, query parameters)
     becomes {{$env API_NAME}}: read from your shell when the file runs, never
     written to the file
-  - browser noise (sec-*, user-agent, referer, ...) is dropped and listed
+  - what is left out is listed WITH ITS REASON (browser, cache, tracing, the
+    browser's cookie, already sent by api, already in your env profile); a
+    header that is not recognised is kept but flagged ("# check:") so you can
+    delete it if the request works without it. --minimal drops those too, and
+    --keep NAME keeps one that was dropped
 
 It refuses what would let pasted text change the file's structure (line breaks,
 {{ ... }}), pipes and redirects, and flags it cannot translate (-F, @file).`,
@@ -57,10 +63,20 @@ It refuses what would let pasted text change the file's structure (line breaks,
 			}
 			s := a.session()
 			ctx := curlimport.Context{Base: s.BaseURL, GraphQL: s.GraphQLURL}
+			ctx.Minimal = minimal
+			ctx.Keep = map[string]bool{}
+			for _, h := range keepHeaders {
+				ctx.Keep[strings.ToLower(strings.TrimSpace(h))] = true
+			}
+			// a header the matching env profile already sends is not needed here
+			ctx.Redundant = map[string]string{}
 			dest := origin(req.URL)
 			for name, p := range a.cfg.Env {
 				if dest != "" && origin(p.URL) == dest {
 					ctx.EnvNames = append(ctx.EnvNames, name)
+					for k, v := range p.Headers {
+						ctx.Redundant[strings.ToLower(k)] = v
+					}
 				}
 			}
 			sort.Strings(ctx.EnvNames)
@@ -90,6 +106,8 @@ It refuses what would let pasted text change the file's structure (line breaks,
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&minimal, "minimal", false, "also drop headers that are not recognised (keep only what is known to matter)")
+	cmd.Flags().StringSliceVar(&keepHeaders, "keep", nil, "keep these headers even if they would be dropped (comma separated)")
 	cmd.Flags().StringVar(&out, "out", "", "append the request to this .http file (created if missing, never overwritten)")
 	return cmd
 }

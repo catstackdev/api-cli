@@ -150,7 +150,8 @@ GET /users/{{create.response.body.data.id}}
   a file with `< ./payload.json` (relative to the `.http` file).
 - To start from a request copied in the browser: `pbpaste | api import` prints a
   `.http` block (`--out file.http` appends). Pass the curl on stdin, never as an
-  argument. Secrets in it become `{{$env API_NAME}}`: export those variables
+  argument. It lists what it left out and why; a `# check:` header is one it did
+  not recognise (delete it if the request works without it). Secrets in it become `{{$env API_NAME}}`: export those variables
   before running, and do not paste their values into the file.
 - Check a file you wrote with `api run file --all --dry`: it parses everything,
   prints each request and sends nothing. The repository's `examples/` directory has

@@ -596,9 +596,14 @@ a file (never overwritten). The active server becomes `{{graphql}}` / `{{base}}`
 its operation, a real bearer token becomes `{{token}}`, and every other
 secret-looking value (headers, JSON fields, query parameters) becomes
 `{{$env API_NAME}}`: it is read from your shell when the request runs and is
-never written to the file. Browser headers (`sec-*`, `user-agent`, `referer`,
-...) and the `Cookie` (the browser's session, not your API credential) are
-dropped and listed in a comment. Pass the command on stdin rather than as an
+never written to the file. What is left out is listed with its reason in a
+comment: `browser` (`sec-*`, `user-agent`, `referer`, ...), `cache` (an
+`If-None-Match` would make the server answer an empty 304), `tracing`, the
+browser's `Cookie` (not your API credential), `already sent by api` (a default
+`Accept`), and `already in your env` (a header your env profile sends). A header
+it does not recognise is kept but flagged with `# check:` so you can delete it if
+the request works without it; `--minimal` drops those too and `--keep NAME`
+keeps one that was dropped (a kept cookie is still a reference, never a value). Pass the command on stdin rather than as an
 argument: it contains quotes and tokens, and an argument lands in your shell
 history. Pipes, redirects, `-F`, `@file` and anything that would add a line or a
 `{{...}}` to the file are refused.
