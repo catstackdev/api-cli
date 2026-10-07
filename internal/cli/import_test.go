@@ -35,7 +35,7 @@ func TestImportUsesTheActiveServerAndNamesMatchingEnvs(t *testing.T) {
 	}
 	env := map[string]string{"API_CONFIG": cfg, "API_BASE_URL": "https://api.dev.example", "API_GRAPHQL_URL": "https://api.dev.example/graphql/v2", "NO_COLOR": "1"}
 	r := runWithEnv(t, env, "import", importCurl)
-	if !strings.Contains(r.out, "POST {{graphql}}/auth") || !strings.Contains(r.out, "same server as env: dev") {
+	if !strings.Contains(r.out, "POST {{graphql}}/auth") || !strings.Contains(r.out, "env dev") {
 		t.Fatalf("server not recognised:\n%s", r.out)
 	}
 	if strings.Contains(r.out, "other") {

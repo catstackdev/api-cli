@@ -39,7 +39,9 @@ var browserNoise = map[string]bool{
 }
 
 var (
-	headerName = regexp.MustCompile("^[A-Za-z0-9!#$%&'*+.^_`|~-]+$")
+	// must start with a letter or digit: a name like "###x" would make its line a
+	// new request in the .http file
+	headerName = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9!#$%&'*+.^_`|~-]*$")
 	opRe       = regexp.MustCompile(`(?m)^\s*(query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)`)
 	opKindRe   = regexp.MustCompile(`^\s*(query|mutation|subscription)\b`)
 	safeName   = regexp.MustCompile(`[^A-Za-z0-9 _./:-]+`)
@@ -128,6 +130,9 @@ func Render(r Request, c Context) (Result, error) {
 			if err := checkText("body", r.Body); err != nil {
 				return res, err
 			}
+			if strings.HasPrefix(r.Body, "#") || strings.HasPrefix(r.Body, "//") {
+				return res, fmt.Errorf("a body starting with # or // would read as a comment or a new request in a .http file")
+			}
 			body = maskForm(r.Body, secretVar)
 		default:
 			if strings.ContainsAny(r.Body, "\r\n") {
@@ -135,6 +140,9 @@ func Render(r Request, c Context) (Result, error) {
 			}
 			if err := checkText("body", r.Body); err != nil {
 				return res, err
+			}
+			if strings.HasPrefix(r.Body, "#") || strings.HasPrefix(r.Body, "//") {
+				return res, fmt.Errorf("a body starting with # or // would read as a comment or a new request in a .http file")
 			}
 			body = r.Body
 			notes = append(notes, "body copied as is (not JSON or a form): check it for secrets")
@@ -166,18 +174,19 @@ func Render(r Request, c Context) (Result, error) {
 		}
 	}
 	fmt.Fprintf(&b, "### %s\n", name)
-	fmt.Fprintf(&b, "# imported from curl · %s\n", comment(kind))
+	head := "from curl · " + kind
 	if len(c.EnvNames) > 0 {
-		fmt.Fprintf(&b, "# same server as env: %s\n", comment(strings.Join(c.EnvNames, ", ")))
+		head += " · env " + strings.Join(c.EnvNames, ", ")
 	}
+	fmt.Fprintf(&b, "# %s\n", comment(head))
 	if len(dropped) > 0 {
-		fmt.Fprintf(&b, "# dropped: %s\n", comment(strings.Join(unique(dropped), ", ")))
+		fmt.Fprintf(&b, "# dropped: %s\n", comment(summarizeDropped(dropped)))
 	}
 	for _, n := range notes {
 		fmt.Fprintf(&b, "# %s\n", comment(n))
 	}
 	for _, v := range sortedKeys(vars) {
-		fmt.Fprintf(&b, "# needs %s in your shell (read at run time, never stored here)\n", v)
+		fmt.Fprintf(&b, "# needs %s (set it in your shell)\n", v)
 	}
 	res.Vars = sortedKeys(vars)
 
@@ -321,6 +330,8 @@ func maskJSON(body string, secretVar func(string) string) (string, error) {
 		switch {
 		case f != nil && f.obj && secret.Name(f.key) && (isNum || (isStr && tok.(string) != "")):
 			out.WriteString(enc(secretVar(f.key)))
+		case isStr && len(stack) == 1 && f.obj && f.key == "query":
+			out.WriteString(enc(tidyGraphQL(tok.(string))))
 		default:
 			out.WriteString(enc(tok))
 		}
@@ -333,6 +344,34 @@ func maskJSON(body string, secretVar func(string) string) (string, error) {
 		return "", fmt.Errorf("could not rewrite the JSON body: %w", err)
 	}
 	return pretty.String(), nil
+}
+
+// tidyGraphQL makes a query readable on one JSON line: DevTools sends it with
+// its source indentation ("\n    mutation ...\n  "). Whitespace is only
+// collapsed when that cannot change the meaning: a query with a string literal
+// or a # comment (which would swallow the rest of a joined line) is only trimmed.
+func tidyGraphQL(q string) string {
+	if strings.ContainsAny(q, `"#`) {
+		return strings.TrimSpace(q)
+	}
+	return strings.Join(strings.Fields(q), " ")
+}
+
+// summarizeDropped groups the sec-* browser headers: "sec-* (3), referer, ...".
+func summarizeDropped(in []string) string {
+	sec := 0
+	var rest []string
+	for _, d := range unique(in) {
+		if strings.HasPrefix(d, "sec-") {
+			sec++
+			continue
+		}
+		rest = append(rest, d)
+	}
+	if sec > 0 {
+		rest = append([]string{fmt.Sprintf("sec-* (%d)", sec)}, rest...)
+	}
+	return strings.Join(rest, ", ")
 }
 
 func unique(in []string) []string {

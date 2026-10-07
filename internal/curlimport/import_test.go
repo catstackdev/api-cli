@@ -39,7 +39,9 @@ func TestLoginCurl(t *testing.T) {
 	for _, want := range []string{
 		"### login",
 		"graphql mutation login",
-		"same server as env: dev",
+		"env dev",
+		`"query": "mutation login($input: LoginInput!) { login(input: $input) { accessToken } }"`,
+		"sec-* (1)",
 		"POST {{graphql}}/auth",
 		"content-type: application/json",
 		`"password": "{{$env API_PASSWORD}}"`,
@@ -108,6 +110,7 @@ func TestHostileInputIsRefused(t *testing.T) {
 		"file upload":       "curl https://x.test -d @/etc/passwd",
 		"form":              "curl https://x.test -F a=b",
 		"relative url":      "curl /users",
+		"body as request":   "curl https://x.test -d '###'",
 	}
 	for name, in := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -173,4 +176,21 @@ func FuzzParseRender(f *testing.F) {
 			}
 		}
 	})
+}
+
+// A query that has a string literal or a # comment must not have its
+// whitespace joined: the comment would swallow the rest of the line.
+func TestQueryWhitespaceIsOnlyCollapsedWhenSafe(t *testing.T) {
+	res := render(t, `curl https://x.test/g -H 'content-type: application/json' -d '{"query":"query {\n  a(x: \"p  q\")\n  # note\n  b\n}"}'`, Context{})
+	if !strings.Contains(res.HTTP, `p  q`) || !strings.Contains(res.HTTP, `\n  # note\n`) {
+		t.Fatalf("a query with a string or comment must keep its line breaks:\n%s", res.HTTP)
+	}
+}
+
+// A header whose name starts with ### would be a new request on its own line.
+func TestHeaderNamedLikeARequestIsDropped(t *testing.T) {
+	res := render(t, `curl https://x.test -H '###x: 1'`, Context{})
+	if strings.Count(res.HTTP, "###") != 1 || !strings.Contains(res.HTTP, "invalid name") {
+		t.Fatalf("the header must be dropped, not written:\n%s", res.HTTP)
+	}
 }
