@@ -74,13 +74,19 @@ It refuses what would let pasted text change the file's structure (line breaks,
 				}))
 				return nil
 			}
-			if err := appendHTTP(out, res.HTTP); err != nil {
+			name, added, err := appendHTTP(out, res.HTTP)
+			if err != nil {
 				return &ExitError{Code: exitGeneric, Msg: "✗ " + err.Error()}
 			}
-			a.say("✓ appended to " + out)
+			if added {
+				a.say("✓ appended to " + out + " as \"" + name + "\"")
+			} else {
+				a.say("✓ already in " + out + " as \"" + name + "\" (nothing added)")
+			}
 			for _, v := range res.Vars {
 				a.say("  needs " + v + " in your shell when you run it")
 			}
+			a.say("  run it: api run " + shellWord(out) + " " + shellWord(name))
 			return nil
 		},
 	}
@@ -104,16 +110,40 @@ func (a *app) importInput(args []string) (string, error) {
 	return string(data), nil
 }
 
-// appendHTTP adds a request block to a file, separated by a blank line.
-func appendHTTP(path, block string) error {
+// appendHTTP adds a request block to a file, separated by a blank line. A block
+// that is already there is not added again, and a different request with the
+// same name gets a number ("GET /captures 2"), so `api run file "name"` stays
+// unambiguous. It returns the name the block has in the file.
+func appendHTTP(path, block string) (name string, added bool, err error) {
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return "", false, err
+	}
+	name = strings.TrimSpace(strings.TrimPrefix(strings.SplitN(block, "\n", 2)[0], "###"))
+	if strings.Contains(string(existing), block) {
+		return name, false, nil
+	}
+	taken := map[string]bool{}
+	for _, l := range strings.Split(string(existing), "\n") {
+		if rest, ok := strings.CutPrefix(l, "###"); ok {
+			taken[strings.TrimSpace(rest)] = true
+		}
+	}
+	if taken[name] {
+		base := name
+		for n := 2; taken[name]; n++ {
+			name = fmt.Sprintf("%s %d", base, n)
+		}
+		block = "### " + name + strings.TrimPrefix(block, "### "+base)
+	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	defer f.Close()
-	if st, err := f.Stat(); err == nil && st.Size() > 0 {
+	if len(existing) > 0 {
 		block = "\n" + block
 	}
 	_, err = f.WriteString(block)
-	return err
+	return name, err == nil, err
 }

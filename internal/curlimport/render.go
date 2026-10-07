@@ -36,6 +36,9 @@ var browserNoise = map[string]bool{
 	"accept-encoding": true, "connection": true, "host": true, "content-length": true,
 	"priority": true, "dnt": true, "cache-control": true, "pragma": true,
 	"upgrade-insecure-requests": true, "te": true,
+	// cache validators: sent from here they turn a 200 into an empty 304
+	"if-none-match": true, "if-modified-since": true, "if-match": true,
+	"if-unmodified-since": true, "if-range": true,
 }
 
 var (

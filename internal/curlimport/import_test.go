@@ -90,6 +90,13 @@ func TestPlainRESTAndRealBearer(t *testing.T) {
 	}
 }
 
+func TestCacheValidatorsAreDropped(t *testing.T) {
+	res := render(t, `curl https://x.test/a -H 'If-None-Match: W/"abc"' -H 'If-Modified-Since: Mon, 1 Jan 2024 00:00:00 GMT'`, Context{})
+	if strings.Contains(strings.ToLower(res.HTTP), "if-none-match:") || strings.Contains(strings.ToLower(res.HTTP), "if-modified-since:") {
+		t.Fatalf("a cache validator would make the server answer 304 with no body:\n%s", res.HTTP)
+	}
+}
+
 func TestKeyOrderIsKept(t *testing.T) {
 	res := render(t, `curl https://x.test/a -H 'content-type: application/json' -d '{"z":1,"a":{"y":2,"b":[3,{"password":"p"}]},"m":"x"}'`, Context{})
 	i := func(s string) int { return strings.Index(res.HTTP, s) }

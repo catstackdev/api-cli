@@ -55,8 +55,8 @@ func TestImportOutAppendsAndNeverOverwrites(t *testing.T) {
 	}
 	data, _ := os.ReadFile(file)
 	s := string(data)
-	if !strings.HasPrefix(s, "### keep\nGET /me\n") || strings.Count(s, "### login") != 2 {
-		t.Fatalf("existing content must stay, requests appended:\n%s", s)
+	if !strings.HasPrefix(s, "### keep\nGET /me\n") || strings.Count(s, "### login") != 1 {
+		t.Fatalf("existing content must stay, an identical request is added once:\n%s", s)
 	}
 }
 
@@ -78,5 +78,21 @@ func TestImportColour(t *testing.T) {
 	// piped output is plain by default, so it can be redirected into a file
 	if r := run(t, importCurl, "import"); strings.Contains(r.out, "\x1b[") {
 		t.Fatalf("a non-terminal must get plain output:\n%q", r.out)
+	}
+}
+
+func TestImportOutDoesNotDuplicateAndNumbersSameNames(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "r.http")
+	first := run(t, importCurl, "import", "--out", file)
+	again := run(t, importCurl, "import", "--out", file)
+	if !strings.Contains(first.err, `run it: api run`) || !strings.Contains(again.err, "already in") {
+		t.Fatalf("first=%q again=%q", first.err, again.err)
+	}
+	other := strings.Replace(importCurl, "Hunter2-SECRET", "different", 1)
+	other = strings.Replace(other, `"password":"different"`, `"password":"different","extra":1`, 1)
+	r := run(t, other, "import", "--out", file)
+	data, _ := os.ReadFile(file)
+	if strings.Count(string(data), "\n### login\n")+strings.Count(string(data), "### login\n#") < 1 || strings.Count(string(data), "### login 2\n") != 1 || !strings.Contains(r.err, `"login 2"`) {
+		t.Fatalf("a different request with the same name must be numbered, an identical one skipped:\n%s\n%s", data, r.err)
 	}
 }
