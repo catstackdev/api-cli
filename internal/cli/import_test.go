@@ -67,3 +67,16 @@ func TestImportRefusesHostileAndEmptyInput(t *testing.T) {
 		}
 	}
 }
+
+func TestImportColour(t *testing.T) {
+	if r := run(t, importCurl, "-C", "import"); !strings.Contains(r.out, "\x1b[") {
+		t.Fatalf("-C must colour the output:\n%q", r.out)
+	}
+	if r := run(t, importCurl, "-M", "import"); strings.Contains(r.out, "\x1b[") {
+		t.Fatalf("-M must give plain output:\n%q", r.out)
+	}
+	// piped output is plain by default, so it can be redirected into a file
+	if r := run(t, importCurl, "import"); strings.Contains(r.out, "\x1b[") {
+		t.Fatalf("a non-terminal must get plain output:\n%q", r.out)
+	}
+}

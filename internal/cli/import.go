@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"cybercat/api/internal/curlimport"
+	"cybercat/api/internal/render"
 	"cybercat/api/internal/ui"
 
 	"github.com/spf13/cobra"
@@ -68,7 +69,9 @@ It refuses what would let pasted text change the file's structure (line breaks,
 				return &ExitError{Code: exitUsage, Msg: "✗ " + err.Error()}
 			}
 			if out == "" {
-				fmt.Fprint(a.io.Out, res.HTTP)
+				fmt.Fprint(a.io.Out, ui.HTTP(res.HTTP, a.colorOut(), func(b string) string {
+					return string(render.Colorize([]byte(b), render.PaletteFromEnv()))
+				}))
 				return nil
 			}
 			if err := appendHTTP(out, res.HTTP); err != nil {

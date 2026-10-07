@@ -1,0 +1,18 @@
+### login
+# imported from curl · graphql mutation login
+# dropped: sec-ch-ua-platform, authorization (empty bearer token), referer, accept-language, sec-ch-ua, sec-ch-ua-mobile, user-agent
+# needs API_PASSWORD in your shell (read at run time, never stored here)
+POST https://api.dev.upscale.technology/graphql/v2/auth
+accept: application/graphql-response+json, application/json
+content-type: application/json
+
+{
+  "query": "\n    mutation login($input: LoginInput!) {\n      login(input: $input) {\n        accessToken\n        refreshToken\n        session\n        logoutToken\n        nextStep\n      }\n    }\n  ",
+  "variables": {
+    "input": {
+      "username": "dev+upscale-dev@goupscale.com",
+      "password": "{{$env API_PASSWORD}}"
+    }
+  },
+  "operationName": "login"
+}

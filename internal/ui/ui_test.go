@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -136,4 +137,23 @@ func stripSGR(s string) string {
 		out.WriteByte(s[i])
 	}
 	return out.String()
+}
+
+var sgr = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+func TestHTTPHighlightKeepsTheText(t *testing.T) {
+	src := "### login\n# imported from curl\nPOST {{graphql}}/auth\ncontent-type: application/json\nX-Key: {{$env API_KEY}}\n\n{\n  \"password\": \"{{$env API_PASSWORD}}\"\n}\n"
+	if got := HTTP(src, false, nil); got != src {
+		t.Fatal("off must return the text unchanged")
+	}
+	on := HTTP(src, true, nil)
+	if strings.Contains(on, "\x1b[") == false {
+		t.Fatal("on must add colour")
+	}
+	if sgr.ReplaceAllString(on, "") != src {
+		t.Fatalf("removing the colour must give back the input:\n%q", on)
+	}
+	if !strings.Contains(on, "\x1b[33m{{$env API_KEY}}") || !strings.Contains(on, "\x1b[32m{{graphql}}") {
+		t.Fatalf("variables must be coloured by kind:\n%q", on)
+	}
 }
