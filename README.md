@@ -3,8 +3,8 @@
 REST + GraphQL client for the terminal, written in Go. It replaces the zsh
 helpers in `src/curl.sh` (`cget`, `cpost`, `cgql`, ...) with one binary that has
 real tab completion, a built-in jq, coloured output, a pager, config with named
-envs, a two-env diff, saved requests and more. A small zsh shim (`src/api.sh`)
-wires it into the shell.
+envs, a two-env diff, saved requests and more. A small zsh wrapper, built into the binary
+(`api shell-init`), wires it into the shell.
 
 `curl.sh` still exists and keeps working. `api` is a separate namespace;
 `src/up-scale.sh` is already built on it.
@@ -14,11 +14,14 @@ wires it into the shell.
 ```zsh
 cd ~/.config/cybercat/profile/personal-lib/api
 make install        # builds bin/api and copies it to ~/.local/bin/api
-exec zsh            # the shim + completion load with the profile
+echo 'eval "$(command api shell-init)"' >> ~/.zshrc   # shell integration + completion
+exec zsh
 api doctor          # checks the whole setup (--json for scripts and CI)
 ```
 
-`make build` alone is enough: the shim also finds `bin/api` in this directory.
+The binary is all you install: `api shell-init` prints the zsh wrapper (it is
+embedded), so there is no file to copy. Without that line, requests still work,
+but `login` and `env load|use|clear` cannot change your shell.
 
 If `api` ever dies silently right after an install (exit 137, no message, while
 `bin/api` still runs): on Apple silicon, copying a new binary **over** one that
@@ -94,7 +97,8 @@ api diff --envs dev,thien /users/1 .data
 | `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                 |
 | `headers <path>`, `time <path>`                  | response headers / dns-tls-ttfb timing            |
 | `doctor [--online] [--fix]`                      | check binary, shim, completion, config, session   |
-| `completion zsh`                                 | the completion script (cached by the shim)        |
+| `shell-init`                                     | the zsh wrapper: `eval "$(command api shell-init)"` |
+| `completion zsh`                                 | the completion script (cached by the wrapper)     |
 
 Any argument starting with `.` is a jq filter (`./file` and `../file` are
 paths). The last filter wins. User-defined `[alias]` entries from config also

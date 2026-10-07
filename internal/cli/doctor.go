@@ -204,7 +204,7 @@ func (a *app) doctorChecks() []check {
 func (a *app) checkShim() check {
 	switch marker := a.getenv("API_SHIM"); {
 	case marker == "":
-		return newCheck("shell shim", lvlWarn, "not detected: run `exec zsh`, or those commands cannot change your shell")
+		return newCheck("shell shim", lvlWarn, "not detected: add `eval \"$(command api shell-init)\"` to ~/.zshrc and run `exec zsh`, or login and env load/use/clear cannot change your shell")
 	case marker == shimContract:
 		return newCheck("shell shim", lvlOK, "loaded: login, env load/use/clear can change your shell")
 	case shimNewer(marker):

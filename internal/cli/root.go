@@ -298,6 +298,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.configCmd(),
 		a.secretCmd(),
 		a.doctorCmd(),
+		a.shellInitCmd(),
 		a.diffCmd(),
 		a.runCmd(),
 		a.historyCmd(),

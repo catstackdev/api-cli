@@ -26,6 +26,7 @@ Available Commands:
   run         Run saved requests from a .http file (JetBrains / VS Code REST Client format)
   schema      Explore a GraphQL service by introspection (names, types, local cache)
   secret      Store passwords in the system credential store (macOS Keychain)
+  shell-init  Print the shell integration (login, env load/use/clear, completion)
   time        Request timing breakdown: dns / connect / tls / ttfb / total
   watch       GET a path every interval until Ctrl+C
 
@@ -1632,6 +1633,28 @@ Usage:
 
 Flags:
       --reveal   print the value to stdout
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api shell-init =====
+Print the zsh wrapper that lets "api login" and "api env load|use|clear"
+change your current shell, and that loads tab completion. Add to ~/.zshrc:
+
+  eval "$(command api shell-init)"
+
+The binary works without it for requests, but commands that set session
+variables only print code; the wrapper evals it.
+
+Usage:
+  api shell-init [zsh] [flags]
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)

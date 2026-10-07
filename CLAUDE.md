@@ -11,7 +11,10 @@ in `README.md`; this file is the architecture and the traps.
 A Go CLI that replaced the zsh helpers of the retired `src/curl.sh`:
 `api get|post|gql|login|logout|env|json|run|diff|schema|secret|config|doctor|...`,
 with cobra tab completion and a built-in jq (gojq). It is a standalone module
-(`cybercat/api`), mounted into the profile by one shim, `src/api.sh`.
+(`cybercat/api`). Its zsh shim is embedded in the binary (`internal/cli/shim.zsh`,
+printed by `api shell-init`), so a user installs one file and adds
+`eval "$(command api shell-init)"` to `~/.zshrc`. The profile's `src/api.sh` is
+just that one line.
 `src/up-scale.sh` is built on it (login, `ugql-*` wrappers); its fzf pickers and
 `ugql-browse` stay shell and read the `~/.cache/ugql` files `api schema sync`
 writes. Security rules are in `SECURITY.md` (each has a test that fails when the
@@ -63,7 +66,9 @@ SECURITY.md               rule -> code symbol -> test tables (guarded by a test)
 examples/                 runnable .http files for the README tour, server.py (stub API) and
                           .api.toml to try them; internal/cli/examples_test.go dry-runs them all
 skills/api-cli.md         Claude Code skill for USERS of the tool (make install-skill)
-../../src/api.sh          zsh shim (top-level src/, auto-loaded by init.sh)
+internal/cli/shim.zsh     the zsh shim (go:embed; `api shell-init` stamps shimContract in)
+  shell_init.go
+../../src/api.sh          profile hook: evals `api shell-init` (auto-loaded by init.sh)
 ```
 
 ## The one design rule: a single Spec
@@ -76,7 +81,7 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
 ## Gotchas (each one has bitten or would bite)
 
 1. **A child process cannot change the parent shell.** `login`, `env load` and
-   `env clear` only PRINT shell code under `--emit`; `src/api.sh` evals it.
+   `env clear` only PRINT shell code under `--emit`; the shim (`internal/cli/shim.zsh`) evals it.
    Everything printed for eval goes through `session.Quote`/`Export` (token
    values come from server responses). Never print an unquoted value there, and
    keep stdout of those commands to eval-able lines only; messages go to stderr.
@@ -125,10 +130,10 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     do not use `StrictMissingError.String()`).
 12. **`env use` emits plain assignments, not `export`** (session variables stay
     unexported, like `upscale-login`), and drops the old token. Any new
-    shell-changing command must be added to the `mutating` case in `src/api.sh`
+    shell-changing command must be added to the `mutating` case in `internal/cli/shim.zsh`
     (which skips leading global flags like `--env x`, `-M` before the
     subcommand) AND bump `shimContract` (doctor.go) together with the
-    `API_SHIM=<n>` value the shim exports, so `api doctor` flags a shell still
+    `API_SHIM` marker (the shim file holds `@CONTRACT@`, stamped from `shimContract`), so `api doctor` flags a shell still
     running the old shim.
 13. **`diff` runs a request against two envs: GET and GraphQL queries only.**
     `isReadOnlyQuery` is deliberately conservative. Never relax it to allow
@@ -360,7 +365,7 @@ make smoke                 # whole tool end to end (36 checks), see below
 - Module download is also blocked by the sandbox proxy (TLS verify). Use a warm
   module cache: `GOMODCACHE`/`GOCACHE` in the scratchpad, then `GOPROXY=off`.
 - `make e2e` (`test/shim.zsh`) tests the shim against real local servers: run it
-  after touching `src/api.sh`, `env use`, `login` or token handling. It runs
+  after touching `internal/cli/shim.zsh`, `env use`, `login` or token handling. It runs
   with `no_unset` on purpose: the shim must not die under `set -u`.
 - Verify shim changes with the profile's `verify-init-change` skill (new shell,
   `exec zsh`, same-shell re-source), and the end-to-end shim check in the
@@ -389,5 +394,5 @@ make smoke                 # whole tool end to end (36 checks), see below
 - Go: stdlib first; cobra for CLI, gojq for jq. Errors that should end the run
   with a code are `*ExitError`; everything else is exit 2 (usage).
 - Comments explain WHY (the non-obvious constraint), not what.
-- Shell (`src/api.sh`): house style from `~/dotfiles/CLAUDE.md` (`::` namespace,
+- Shell (`internal/cli/shim.zsh`): house style from `~/dotfiles/CLAUDE.md` (`::` namespace,
   `local` everywhere, quote variables, zsh builtins over forks).

@@ -10,10 +10,6 @@
 setopt local_options no_unset
 HERE="${0:A:h}"
 API_DIR="${HERE:h}"
-# The shim lives in the profile repo: next to this module when it is mounted
-# there, else the installed profile (override with API_PROFILE_SRC).
-PROFILE_SRC="${API_PROFILE_SRC:-${API_DIR:h:h}/src}"
-[[ -f "$PROFILE_SRC/api.sh" ]] || PROFILE_SRC="$HOME/.config/cybercat/profile/src"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/api-e2e.XXXXXX")"
 typeset -i FAILS=0 CHECKS=0
 typeset -a PIDS=()
@@ -96,7 +92,7 @@ cd "$WORK"
 export PATH="$API_DIR/bin:$PATH"
 print -r -- "binary under test: $(command -v api) ($(api --version 2>&1))"
 
-source "$PROFILE_SRC/api.sh"
+eval "$(command api shell-init)"  # the shim ships inside the binary
 unset API_BASE_URL API_GRAPHQL_URL API_TOKEN API_ENV API_TOKEN_DEV API_TOKEN_THIEN
 
 reset() {
