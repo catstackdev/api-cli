@@ -11,7 +11,7 @@ editor and from the shell.
 | [`checks.http`](checks.http)     | `# @assert` response checks for CI                                           |
 | [`user.json`](user.json)         | the body file `users.http` reads with `< ./user.json`                        |
 | [`server.py`](server.py)         | a tiny in-memory API with the endpoints above (Python 3, no installs)        |
-| [`.api.toml`](.api.toml)         | project config: an env `local` pointing at that server                       |
+| [`.api.toml`](../api.toml)       | project config: an env `local` pointing at that server                       |
 
 ## Try them
 
@@ -23,8 +23,9 @@ Two terminals. Run `api` from **inside this directory**: it uses the nearest
 python3 server.py                 # http://127.0.0.1:8787, logs every request
 
 # terminal 2
-cd examples
+
 api config validate               # reads .api.toml
+cd examples
 api run users.http --list         # what is in the file
 api run users.http --all          # every request, in order
 api run chaining.http --all
