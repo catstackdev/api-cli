@@ -175,3 +175,18 @@ func TestRunSafety(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+func TestRunMissingEnvVariableIsExplainedOnce(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "login.http")
+	if err := os.WriteFile(file, []byte("### login\nPOST https://x.example/auth\n\n{\"password\": \"{{$env API_PASSWORD}}\"}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := run(t, "", "run", file, "--dry")
+	if r.code == 0 {
+		t.Fatalf("a missing variable must fail: %+v", r)
+	}
+	if strings.Count(r.err, "is not set") != 1 || !strings.Contains(r.err, "export API_PASSWORD") {
+		t.Fatalf("the message must appear once and say what to do:\n%s", r.err)
+	}
+}

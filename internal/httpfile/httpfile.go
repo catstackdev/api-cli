@@ -274,7 +274,11 @@ func interpolate(s string, o Options, depth int) (string, bool, error) {
 			v, ok := o.Getenv(name)
 			if !ok {
 				if firstErr == nil {
-					firstErr = fmt.Errorf("{{$env %s}}: not allowed or not set (only API_* variables can be read)", name)
+					if strings.HasPrefix(name, "API_") {
+						firstErr = fmt.Errorf("{{$env %s}} is not set: export %s in your shell first (the value is read when the request runs, never from the file)", name, name)
+					} else {
+						firstErr = fmt.Errorf("{{$env %s}} is not allowed: only API_* variables can be read", name)
+					}
 				}
 				return m
 			}

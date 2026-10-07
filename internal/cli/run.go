@@ -109,6 +109,15 @@ func selectRequests(file *httpfile.File, sel string, all bool) ([]*httpfile.Requ
 	return reqs, nil
 }
 
+// printedError is err's exit code with no message: sayRunError already printed
+// it, and the root handler would print it a second time.
+func printedError(err error) error {
+	if ee, ok := err.(*ExitError); ok {
+		return &ExitError{Code: ee.Code}
+	}
+	return &ExitError{Code: exitUsage}
+}
+
 // sayRunError prints a failed request's message once (an ExitError may have none).
 func (a *app) sayRunError(err error) {
 	if ee, ok := err.(*ExitError); ok {
@@ -197,7 +206,7 @@ pass --trust-hosts.`,
 				if err := a.runRequest(cmd, path, file, r, uservars, o, filter, o.trustHosts, false); err != nil {
 					a.sayRunError(err)
 					if firstErr == nil {
-						firstErr = err
+						firstErr = printedError(err)
 					}
 					if !keepGoing {
 						break
