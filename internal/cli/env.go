@@ -11,6 +11,7 @@ import (
 	"cybercat/api/internal/config"
 	"cybercat/api/internal/envfile"
 	"cybercat/api/internal/session"
+	"cybercat/api/internal/ui"
 
 	"github.com/spf13/cobra"
 )
@@ -60,17 +61,53 @@ func (a *app) envCmd() *cobra.Command {
 		Short: "Show env, base URL and token prefix",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			s := a.session()
-			fmt.Fprintf(a.io.Out, "  env   : %s\n", orUnset(s.Name))
-			fmt.Fprintf(a.io.Out, "  base  : %s\n", orUnset(s.BaseURL))
-			fmt.Fprintf(a.io.Out, "  gql   : %s\n", orUnset(s.GraphQLURL))
-			tokenLine := session.MaskToken(s.Token)
-			if exp := tokenExpiry(s.Token, time.Now()); exp != "" {
-				tokenLine += "  (" + exp + ")"
+			s, _, src := a.resolveWithSources(a.envName)
+			color := a.colorOut()
+			line := func(label, value string) {
+				if value == "" {
+					value = ui.Paint("<not set>", ui.Dim, color)
+				}
+				fmt.Fprintf(a.io.Out, "  %s : %s\n", ui.Paint(label, ui.Dim, color), value)
 			}
-			fmt.Fprintf(a.io.Out, "  token : %s\n", tokenLine)
+			from := func(label string) {
+				if label == "" {
+					return
+				}
+				code := ui.Dim
+				switch {
+				case strings.Contains(label, "NOT toml"):
+					code = ui.Yellow
+				case strings.Contains(label, "same server as the shell"):
+					code = ui.Green
+				}
+				fmt.Fprintf(a.io.Out, "          %s %s\n", ui.Paint("source:", ui.Dim, color), ui.Paint(label, code, color))
+			}
+			name := ""
+			if s.Name != "" {
+				name = ui.Paint(s.Name, ui.Bold+";"+ui.Cyan, color)
+			}
+			line("env  ", name)
+			line("base ", s.BaseURL)
+			from(src.base)
+			line("gql  ", s.GraphQLURL)
+			from(src.gql)
+			if s.GraphQLURL == "" && s.BaseURL != "" {
+				from("default: /graphql on the base URL")
+			}
+			token := ""
+			if s.Token != "" {
+				token = session.MaskToken(s.Token)
+				if exp := tokenExpiry(s.Token, time.Now()); exp != "" {
+					token += "  (" + paintExpiry(exp, color) + ")"
+				}
+			}
+			line("token", token)
+			from(src.token)
 			if c := a.cacheStatus(s.Name, s.BaseURL); c != "" {
-				fmt.Fprintf(a.io.Out, "  cache : %s\n", c)
+				line("cache", c)
+				if c != "none" && s.Token == "" {
+					from("a cached token is attached when a request is sent")
+				}
 			}
 		},
 	})
@@ -197,6 +234,14 @@ function does that for you.`,
 
 	cmd.AddCommand(load, clear, list, root, a.useEnvCmd(), a.envExampleCmd(), a.envInitCmd())
 	return cmd
+}
+
+// paintExpiry colours a JWT expiry: red once expired, green otherwise.
+func paintExpiry(exp string, color bool) string {
+	if strings.HasPrefix(exp, "EXPIRED") {
+		return ui.Paint(exp, ui.Red, color)
+	}
+	return ui.Paint(exp, ui.Green, color)
 }
 
 func orUnset(v string) string {

@@ -190,6 +190,9 @@ type Loaded struct {
 	LocalPath  string
 	// Warnings are non-fatal notes about what was ignored for safety.
 	Warnings []string
+	// EnvOrigin says which file defines each env: "global", "project" or
+	// "global + project". Display only (`api env status`); no rule reads it.
+	EnvOrigin map[string]string
 }
 
 // GlobalPath is where the global file lives (it may not exist).
@@ -378,6 +381,17 @@ func LoadWith(startDir string, getenv func(string) string) (Loaded, error) {
 		}
 	}
 	l.Config = Merge(g, loc)
+	l.EnvOrigin = map[string]string{}
+	for name := range g.Env {
+		l.EnvOrigin[name] = "global"
+	}
+	for name := range loc.Env {
+		if l.EnvOrigin[name] != "" {
+			l.EnvOrigin[name] += " + project"
+		} else {
+			l.EnvOrigin[name] = "project"
+		}
+	}
 	for name, pe := range loc.Env {
 		ge, inGlobal := g.Env[name]
 		protected := inGlobal && ge.anchored()
