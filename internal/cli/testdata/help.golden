@@ -5,7 +5,7 @@ Usage:
   api [command]
 
 Available Commands:
-  again        Repeat the Nth most recent GET request (default: the last one)
+  again        Repeat the Nth most recent request: a GET, or a saved pick (default: the last one)
   cache        Show or clear the caches (OpenAPI indexes, GraphQL schemas)
   config       Show and edit the global / project config (envs, defaults, aliases)
   del, DELETE  DELETE a path
@@ -16,7 +16,7 @@ Available Commands:
   get, GET     GET a path
   gql          GraphQL request against $API_GRAPHQL_URL (or $API_BASE_URL/graphql)
   headers      GET a path and print only the response headers
-  history      List recent requests (method, path, filter: never bodies or tokens)
+  history      List recent requests to the current server (method, path, filter: never bodies or tokens)
   import       Convert a copied curl command into a .http request (prints; sends nothing)
   json         Build a JSON object from key=value / key:=json arguments
   login        Log in (REST or GraphQL) and store the token as API_TOKEN
@@ -45,14 +45,21 @@ Flags:
 Use "api [command] --help" for more information about a command.
 
 ===== api again =====
-Repeats a request from the history. Only GET requests can be repeated: bodies
-and tokens are never stored, so a POST would be sent without its body. The
-current env and token are used, so after switching envs this runs there. A
-.filter argument replaces the stored one. All the usual flags (-i, -c, --dry,
-...) work. --pick chooses the entry with fzf.
+Repeats a request from the history. A GET is repeated from its path. A request
+you picked with `api openapi pick` or `api gql --pick` is kept as a file under
+.api/requests/ and the history points at it (RUN): it runs again from the project
+it was saved in, and asks again before anything that changes data (--yes skips
+that); --edit changes it first (your saved edits are kept), and --default starts
+that edit from the skeleton the pick generated. Anything else (a POST typed by hand) is not
+repeated: bodies and tokens are never stored. The
+current env and token are used. The numbers are those of `api history`, so only
+requests to the server the shell points at are listed, and an entry for another
+server is refused rather than sent to this one (--all lists them to see why).
+A .filter argument replaces the stored one. All the usual flags (-i, -c,
+--dry, ...) work. --pick chooses the entry with fzf.
 
 Usage:
-  api again [N] [.filter] [--pick] [flags]
+  api again [N] [.filter] [--pick] [--all] [--edit] [--default] [flags]
 
 Examples:
   api again            # repeat the last request
@@ -60,10 +67,13 @@ Examples:
   api again --pick
 
 Flags:
+      --all api history -a         number the entries of every server, as api history -a does
       --columns strings            with --table: the columns to show, in order (a,b,c)
   -c, --compact                    compact JSON output
       --connect-timeout duration   connect time limit (env CURL_CONNECT_TIMEOUT, seconds) (default 10s)
+      --default                    saved request: edit starting from the skeleton the pick generated, not your last version (that stays as <file>.bak)
       --dry                        print the curl command instead of sending
+      --edit                       saved request: edit a copy in your editor first (unsaved = cancel; the file is not changed)
       --har string                 also write the exchange to a HAR file (appends; secrets are masked)
       --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
   -H, --header stringArray         extra header, "Name: value" (repeatable)
@@ -81,6 +91,7 @@ Flags:
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -v, --verbose                    print request and response headers to stderr
+      --yes                        saved request: do not ask before running one that changes data
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -762,6 +773,7 @@ Flags:
   -k, --insecure                   skip TLS certificate verification
       --item string                implies --pick: use this "<query|mutation> <name>" instead of choosing it with fzf (for tv, editors)
       --no-auth                    do not send the bearer token
+      --no-save api again          with --pick: do not keep the request under .api/requests/ (so api again cannot repeat it)
   -o, --output string              write the body to a file
       --pick                       choose the endpoint and the query with fzf, edit the generated query, then run it (default with no query on a terminal)
   -Q, --query stringArray          query parameter key=value (repeatable)
@@ -826,7 +838,11 @@ Global Flags:
       --token string        bearer token (default $API_TOKEN)
 
 ===== api history =====
-List recent requests (method, path, filter: never bodies or tokens)
+Lists what you requested from the server the shell points at. The history file
+is shared by every project, so other servers' requests are hidden unless you
+pass -a/--all (which also shows older entries that were saved without a server).
+Only requests that succeeded (status below 400) are remembered. The numbers are
+the ones `api again N` uses; a long path continues on the next line.
 
 Usage:
   api history [flags]
@@ -836,6 +852,7 @@ Available Commands:
   clear       Delete the history file
 
 Flags:
+  -a, --all         also show other servers' requests and entries saved without a server
   -n, --limit int   how many entries to show (default 20)
 
 Global Flags:
@@ -1538,8 +1555,10 @@ Global Flags:
       --token string        bearer token (default $API_TOKEN)
 
 ===== api schema sync =====
-Fetches each endpoint's schema (concurrently) into $UGQL_CACHE_DIR (default
-~/.cache/ugql) and rebuilds what the browsers read:
+Fetches each endpoint's schema (concurrently) into $UGQL_CACHE_DIR, or by
+default into ~/.cache/ugql/<server>/ (one directory per server, so projects on
+different servers do not overwrite each other; ~/.cache/ugql/current points at
+the last one synced, for the fzf / tv browsers), and rebuilds what they read:
 
   <endpoint>.json   the introspection result
   index.txt         "<endpoint> <kind> <name>" lines (the list)

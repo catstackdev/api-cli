@@ -306,3 +306,65 @@ func TestSchemaTypesListsRootsFirst(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+// With the default location every server has its own directory, so a sync from a
+// project on another server cannot overwrite this one's schemas; `current` is
+// the fixed place the fzf / tv browsers read and follows the last sync.
+func TestSchemaSyncKeepsEachServersCacheApart(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s1, _ := schemaSetup(t)
+	t.Setenv("UGQL_CACHE_DIR", "") // the default, nested layout
+	t.Setenv("API_ENV", "")
+	base1 := os.Getenv("API_BASE_URL")
+	root := filepath.Join(os.Getenv("HOME"), ".cache", "ugql")
+	key := func(base string) string {
+		k, _ := originKey(origin(base))
+		return k
+	}
+
+	if r := run(t, "", "schema", "sync", "user", "--prefix", "v2/"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	one, err := os.ReadFile(filepath.Join(root, key(base1), "user.json"))
+	if err != nil || !strings.Contains(string(one), `"mutationType"`) {
+		t.Fatalf("server one's schema: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "index.txt")); err == nil {
+		t.Fatal("nothing belongs in the flat root any more")
+	}
+	if to, _ := os.Readlink(filepath.Join(root, "current")); to != key(base1) {
+		t.Fatalf("current -> %q", to)
+	}
+	if len(s1.paths) == 0 {
+		t.Fatal("no request reached server one")
+	}
+
+	// a project on another server whose "user" schema is different
+	s2 := &schemaSrv{}
+	srv2 := server(t, s2.handler(t))
+	t.Setenv("API_GRAPHQL_URL", srv2.URL+"/graphql")
+	t.Setenv("API_TOKEN", "TOK-2")
+	t.Setenv("UGQL_CACHE_DIR", "")
+	s2.disabled = true // introspection refused there: nothing is written
+	if r := run(t, "", "schema", "sync", "user", "--prefix", "v2/"); r.code == 0 {
+		t.Fatalf("a refused sync must fail: %+v", r)
+	}
+	s2.disabled = false
+	if r := run(t, "", "schema", "sync", "user", "--prefix", "v2/"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	if again, _ := os.ReadFile(filepath.Join(root, key(base1), "user.json")); string(again) != string(one) {
+		t.Fatal("server one's cache was touched by a sync against server two")
+	}
+	if _, err := os.Stat(filepath.Join(root, key(srv2.URL), "user.json")); err != nil {
+		t.Fatalf("server two has its own directory: %v", err)
+	}
+	if to, _ := os.Readlink(filepath.Join(root, "current")); to != key(srv2.URL) {
+		t.Fatalf("current should follow the last sync: %q", to)
+	}
+	// completion reads the ACTIVE server's directory only
+	_ = os.Remove(filepath.Join(root, key(srv2.URL), "user.json"))
+	if out := complete(t, "gql", "--endpoint", "v2/u"); strings.Contains(out, "v2/user") {
+		t.Fatalf("server one's schemas must not be offered on server two:\n%s", out)
+	}
+}

@@ -17,6 +17,7 @@ import (
 // runShared is run() with ONE state dir across calls (the index lives there).
 func runShared(t *testing.T, state, stdin string, args ...string) result {
 	t.Helper()
+	defer leaveSourceTree(t)() // a pick saves under .api/requests of the project root
 	t.Setenv("XDG_STATE_HOME", state)
 	if os.Getenv("API_CONFIG") == "" {
 		t.Setenv("API_CONFIG", filepath.Join(t.TempDir(), "none.toml"))

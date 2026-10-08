@@ -34,7 +34,8 @@ func schemaLabel(name string) (string, bool) {
 	return label, schema.ValidLabel(label)
 }
 
-func (a *app) ugqlCacheDir() string {
+// ugqlRoot is the base of the schema cache ($UGQL_CACHE_DIR, default ~/.cache/ugql).
+func (a *app) ugqlRoot() string {
 	if d := a.getenv("UGQL_CACHE_DIR"); d != "" {
 		return d
 	}
@@ -43,6 +44,35 @@ func (a *app) ugqlCacheDir() string {
 		home, _ = os.UserHomeDir()
 	}
 	return filepath.Join(home, ".cache", "ugql")
+}
+
+// ugqlNested: with the default location every server gets its own directory
+// (<root>/<origin key>/), so two projects on different servers never overwrite
+// each other's schemas. An explicit $UGQL_CACHE_DIR is the caller's own
+// directory (a tv channel's per-project one, a test's) and stays flat.
+func (a *app) ugqlNested() bool { return a.getenv("UGQL_CACHE_DIR") == "" }
+
+// ugqlKey names the server the GraphQL requests of this shell go to.
+func (a *app) ugqlKey() (string, bool) {
+	s := a.session()
+	full, err := httpc.ResolveURL(s.BaseURL, gqlTarget(s.GraphQLURL, ""), nil)
+	if err != nil {
+		return "", false
+	}
+	return originKey(origin(full))
+}
+
+// ugqlCacheDir is where the schemas of the ACTIVE SERVER live ("" when the
+// server is not known, so nothing is read or written at the wrong place).
+func (a *app) ugqlCacheDir() string {
+	if !a.ugqlNested() {
+		return a.ugqlRoot()
+	}
+	key, ok := a.ugqlKey()
+	if !ok {
+		return ""
+	}
+	return filepath.Join(a.ugqlRoot(), key)
 }
 
 // introspect POSTs a query to the endpoint and returns the response, recovering

@@ -14,24 +14,43 @@ import (
 
 func (a *app) historyCmd() *cobra.Command {
 	var limit int
+	var all bool
 	cmd := &cobra.Command{
 		Use:   "history",
-		Short: "List recent requests (method, path, filter: never bodies or tokens)",
-		Args:  cobra.NoArgs,
+		Short: "List recent requests to the current server (method, path, filter: never bodies or tokens)",
+		Long: `Lists what you requested from the server the shell points at. The history file
+is shared by every project, so other servers' requests are hidden unless you
+pass -a/--all (which also shows older entries that were saved without a server).
+Only requests that succeeded (status below 400) are remembered. The numbers are
+the ones ` + "`api again N`" + ` uses; a long path continues on the next line.`,
+		Args: cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			entries := history.Entries(limit)
+			entries := a.historyEntries(all)
 			if len(entries) == 0 {
-				a.say("  (no history yet)")
+				a.say("  (" + a.emptyHistoryMessage(all) + ")")
 				return
 			}
+			if limit > 0 && len(entries) > limit {
+				entries = entries[:limit]
+			}
+			header := []string{"#", "METHOD", "PATH", "FILTER"}
 			rows := make([][]string, len(entries))
 			for i, e := range entries {
 				rows[i] = []string{strconv.Itoa(i + 1), e.Method, e.Path, e.Filter}
+				if all {
+					rows[i] = append(rows[i], orDefault(e.Origin, "(no server)"))
+				}
 			}
-			ui.Table(a.io.Out, []string{"#", "METHOD", "PATH", "FILTER"}, rows, a.colorOut())
+			if all {
+				header = append(header, "SERVER")
+			} else if n := len(history.Entries(0)) - len(history.ForOrigin(a.currentOrigin(), 0)); n > 0 {
+				defer a.say(fmt.Sprintf("  (%d more for other servers or saved without one: api history -a)", n))
+			}
+			ui.TableWrap(a.io.Out, header, rows, a.colorOut(), 2, ui.TermWidth(a.io.Out)) // a long path continues on the next line
 		},
 	}
 	cmd.Flags().IntVarP(&limit, "limit", "n", 20, "how many entries to show")
+	cmd.Flags().BoolVarP(&all, "all", "a", false, "also show other servers' requests and entries saved without a server")
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "clear",
@@ -52,15 +71,22 @@ func (a *app) historyCmd() *cobra.Command {
 
 func (a *app) againCmd() *cobra.Command {
 	o := &reqOpts{}
-	var pick bool
+	var pick, all, edit, yes, fresh bool
 	cmd := &cobra.Command{
-		Use:   "again [N] [.filter] [--pick]",
-		Short: "Repeat the Nth most recent GET request (default: the last one)",
-		Long: `Repeats a request from the history. Only GET requests can be repeated: bodies
-and tokens are never stored, so a POST would be sent without its body. The
-current env and token are used, so after switching envs this runs there. A
-.filter argument replaces the stored one. All the usual flags (-i, -c, --dry,
-...) work. --pick chooses the entry with fzf.`,
+		Use:   "again [N] [.filter] [--pick] [--all] [--edit] [--default]",
+		Short: "Repeat the Nth most recent request: a GET, or a saved pick (default: the last one)",
+		Long: `Repeats a request from the history. A GET is repeated from its path. A request
+you picked with ` + "`api openapi pick` or `api gql --pick`" + ` is kept as a file under
+.api/requests/ and the history points at it (RUN): it runs again from the project
+it was saved in, and asks again before anything that changes data (--yes skips
+that); --edit changes it first (your saved edits are kept), and --default starts
+that edit from the skeleton the pick generated. Anything else (a POST typed by hand) is not
+repeated: bodies and tokens are never stored. The
+current env and token are used. The numbers are those of ` + "`api history`" + `, so only
+requests to the server the shell points at are listed, and an entry for another
+server is refused rather than sent to this one (--all lists them to see why).
+A .filter argument replaces the stored one. All the usual flags (-i, -c,
+--dry, ...) work. --pick chooses the entry with fzf.`,
 		Example: `  api again            # repeat the last request
   api again 3 .data.id # the third most recent, with a different filter
   api again --pick`,
@@ -76,9 +102,9 @@ current env and token are used, so after switching envs this runs there. A
 					return fmt.Errorf("unexpected argument %q (want a number or a .filter)", x)
 				}
 			}
-			entries := history.Entries(0)
+			entries := a.historyEntries(all)
 			if len(entries) == 0 {
-				return &ExitError{Code: exitGeneric, Msg: "✗ no history yet"}
+				return &ExitError{Code: exitGeneric, Msg: "✗ " + a.emptyHistoryMessage(all)}
 			}
 			if pick {
 				n, err := a.pickHistory(entries)
@@ -91,8 +117,23 @@ current env and token are used, so after switching envs this runs there. A
 				return &ExitError{Code: exitGeneric, Msg: fmt.Sprintf("✗ only %d entries in the history", len(entries))}
 			}
 			e := entries[idx-1]
+			if e.Method == history.RunMethod {
+				if filter == "" {
+					filter = e.Filter
+				}
+				return a.againRun(cmd, e, filter, o, edit, yes, fresh)
+			}
+			if edit || fresh {
+				return &ExitError{Code: exitUsage, Msg: "✗ --edit / --default apply to saved requests (api openapi pick, api gql --pick); a plain GET has nothing to edit"}
+			}
 			if e.Method != "GET" {
 				return &ExitError{Code: exitGeneric, Msg: fmt.Sprintf("✗ %s %s: only GET can be repeated (bodies and tokens are never stored); run it by hand", e.Method, e.Path)}
+			}
+			switch cur := a.currentOrigin(); {
+			case e.Origin == "":
+				return &ExitError{Code: exitGeneric, Msg: fmt.Sprintf("✗ GET %s was saved without a server, so it cannot be told where it belongs: run it by hand", e.Path)}
+			case e.Origin != cur:
+				return &ExitError{Code: exitGeneric, Msg: fmt.Sprintf("✗ GET %s went to %s, but the shell points at %s: switch (api env use ...) or run it by hand", e.Path, e.Origin, orUnset(cur))}
 			}
 			if filter == "" {
 				filter = e.Filter
@@ -109,7 +150,11 @@ current env and token are used, so after switching envs this runs there. A
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 			var out []cobra.Completion
-			for i, e := range history.Entries(15) {
+			entries := a.historyEntries(all)
+			if len(entries) > 15 {
+				entries = entries[:15]
+			}
+			for i, e := range entries {
 				out = append(out, cobra.CompletionWithDesc(strconv.Itoa(i+1), strings.TrimSpace(e.Method+" "+e.Path+" "+e.Filter)))
 			}
 			return out, cobra.ShellCompDirectiveNoFileComp
@@ -117,6 +162,10 @@ current env and token are used, so after switching envs this runs there. A
 	}
 	a.bindFlags(o, cmd, false)
 	cmd.Flags().BoolVar(&pick, "pick", false, "choose the entry with fzf")
+	cmd.Flags().BoolVar(&edit, "edit", false, "saved request: edit a copy in your editor first (unsaved = cancel; the file is not changed)")
+	cmd.Flags().BoolVar(&fresh, "default", false, "saved request: edit starting from the skeleton the pick generated, not your last version (that stays as <file>.bak)")
+	cmd.Flags().BoolVar(&yes, "yes", false, "saved request: do not ask before running one that changes data")
+	cmd.Flags().BoolVar(&all, "all", false, "number the entries of every server, as `api history -a` does")
 	return cmd
 }
 
@@ -127,4 +176,28 @@ func (a *app) pickHistory(entries []history.Entry) (int, error) {
 		lines[i] = strings.TrimSpace(e.Method + " " + e.Path + " " + e.Filter)
 	}
 	return a.fzfPick("again", lines)
+}
+
+// currentOrigin is the server the shell points at ("" when none).
+func (a *app) currentOrigin() string { return origin(a.session().BaseURL) }
+
+// historyEntries is THE list `history`, `again`, its completion and --pick all
+// number from, so "again 2" is always the entry history showed as 2.
+func (a *app) historyEntries(all bool) []history.Entry {
+	if all {
+		return history.Entries(0)
+	}
+	return history.ForOrigin(a.currentOrigin(), 0)
+}
+
+// emptyHistoryMessage says why nothing is listed, and where the rest is.
+func (a *app) emptyHistoryMessage(all bool) string {
+	total := len(history.Entries(0))
+	switch {
+	case total == 0, all:
+		return "no history yet"
+	case a.currentOrigin() == "":
+		return fmt.Sprintf("no server selected; api history -a shows %d entries", total)
+	}
+	return fmt.Sprintf("no history for %s; api history -a shows %d from other servers", a.currentOrigin(), total)
 }

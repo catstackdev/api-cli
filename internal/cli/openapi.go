@@ -41,6 +41,13 @@ func (a *app) openapiCacheDir() string {
 	return filepath.Join(home, ".cache", "api", "openapi")
 }
 
+// originKey turns an origin into a file name ("https://api.x.com" ->
+// "https_api.x.com"); false when it cannot be one.
+func originKey(o string) (string, bool) {
+	key := strings.NewReplacer("://", "_", ":", "-", "[", "", "]", "").Replace(o)
+	return key, o != "" && fileSafe.MatchString(key)
+}
+
 var fileSafe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // openapiCacheFile is the index of the ACTIVE SERVER. It is keyed by the base
@@ -52,8 +59,8 @@ func (a *app) openapiCacheFile() (string, error) {
 		return "", &ExitError{Code: exitGeneric, Msg: "✗ no base URL: `api env load <suffix>`, `api env use <name>`, --base/--env, or a default_env in a .api.toml (the index is kept per server)"}
 	}
 	o := origin(base)
-	key := strings.NewReplacer("://", "_", ":", "-", "[", "", "]", "").Replace(o)
-	if o == "" || !fileSafe.MatchString(key) {
+	key, ok := originKey(o)
+	if !ok {
 		return "", &ExitError{Code: exitGeneric, Msg: fmt.Sprintf("✗ cannot key an index by %q", base)}
 	}
 	return filepath.Join(a.openapiCacheDir(), key+".json"), nil
@@ -539,19 +546,31 @@ func (a *app) openapiEditAndRun(cmd *cobra.Command, op openapi.Operation, pf pic
 	}
 
 	path := filepath.Join(findRoot(), "openapi-pick.http") // only where a "< file" body is resolved from
+	kept := false
 	if !pf.noSave && !o.dry {
 		saved, err := savePicked(slug, doc)
 		if err != nil {
 			return err
 		}
-		path = saved
+		path, kept = saved, true
+		// the generated skeleton, for `api again --default` (best effort)
+		_ = os.WriteFile(saved+".orig", []byte(strings.TrimRight(stripPickMarkers(pickFile(op, slug)), "\n")+"\n"), 0o600)
 		a.say(fmt.Sprintf("✓ saved %s/%s (api run %s)", requestsDir, filepath.Base(saved), strings.TrimSuffix(filepath.Base(saved), ".http")))
 	}
 	if a.asserts, err = compileAsserts(path, []*httpfile.Request{req}); err != nil {
 		return err
 	}
 	a.say("→ " + strings.ToUpper(req.Method) + " " + req.URL)
-	return a.runRequest(cmd, path, file, req, map[string]string{}, o, "", o.trustHosts, false)
+	err = a.runRequest(cmd, path, file, req, map[string]string{}, o, "", o.trustHosts, false)
+	if kept {
+		// remembered even when it failed (a 400 on a body you still have to fix):
+		// `api again` retries it, `api again --edit` fixes it first
+		a.recordRun(path, req.URL)
+		if err != nil {
+			a.hintRetry()
+		}
+	}
+	return err
 }
 
 // savePicked writes the request under .api/requests/, never over an earlier file
@@ -588,7 +607,7 @@ func savePicked(slug, doc string) (string, error) {
 // Offline and fast: one local file.
 func (a *app) verbPathCompletion(method string) func(*cobra.Command, []string, string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-		history, dir := pathCompletion(cmd, args, toComplete)
+		history, dir := a.pathCompletion(cmd, args, toComplete)
 		if len(args) > 0 {
 			return history, dir
 		}

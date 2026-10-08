@@ -157,3 +157,37 @@ func TestHTTPHighlightKeepsTheText(t *testing.T) {
 		t.Fatalf("variables must be coloured by kind:\n%q", on)
 	}
 }
+
+func TestTableWrapContinuesALongCellOnTheNextLines(t *testing.T) {
+	rows := [][]string{
+		{"1", "GET", "/a"},
+		{"2", "GET", "/rest/v2/smart-content?limit=50&sort_by=CREATED_AT&order=DESC&own=false"},
+	}
+	var buf bytes.Buffer
+	TableWrap(&buf, []string{"#", "METHOD", "PATH"}, rows, false, 2, 50)
+	want := "#  METHOD  PATH\n" +
+		"1  GET     /a\n" +
+		"2  GET     /rest/v2/smart-content?limit=50\n" +
+		"           &sort_by=CREATED_AT&order=DESC\n" +
+		"           &own=false\n"
+	if buf.String() != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", buf.String(), want)
+	}
+	for _, line := range strings.Split(strings.TrimRight(buf.String(), "\n"), "\n") {
+		if len([]rune(line)) > 50 {
+			t.Errorf("line over 50: %q", line)
+		}
+	}
+	// not a terminal (width 0): one line per row, so scripts can parse it
+	buf.Reset()
+	TableWrap(&buf, nil, rows, false, 2, 0)
+	if strings.Count(buf.String(), "\n") != 2 {
+		t.Fatalf("no wrapping without a width:\n%s", buf.String())
+	}
+	// a plain Table is unchanged
+	buf.Reset()
+	Table(&buf, nil, rows, false)
+	if strings.Count(buf.String(), "\n") != 2 {
+		t.Fatalf("%s", buf.String())
+	}
+}

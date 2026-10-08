@@ -11,12 +11,12 @@ import (
 
 // pathCompletion offers recently requested paths for the first argument.
 // Completion has to be offline and fast, so it never touches the network.
-func pathCompletion(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+func (a *app) pathCompletion(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	var out []cobra.Completion
-	for _, p := range history.Paths(toComplete) {
+	for _, p := range history.Paths(toComplete, a.currentOrigin()) {
 		out = append(out, p)
 	}
 	return out, cobra.ShellCompDirectiveNoFileComp
@@ -38,7 +38,7 @@ func headerCompletion(cmd *cobra.Command, args []string, toComplete string) ([]c
 }
 
 // endpointCompletion offers GraphQL endpoints from $API_GQL_ENDPOINTS
-// (space or comma separated) and from the ugql schema cache (~/.cache/ugql).
+// (space or comma separated) and from the ugql schema cache (~/.cache/ugql/<server>/).
 func (a *app) endpointCompletion(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	seen := map[string]bool{}
 	var out []cobra.Completion
@@ -55,9 +55,11 @@ func (a *app) endpointCompletion(cmd *cobra.Command, args []string, toComplete s
 	for _, e := range strings.FieldsFunc(a.getenv("API_GQL_ENDPOINTS"), func(r rune) bool { return r == ' ' || r == ',' }) {
 		add(e)
 	}
-	files, _ := filepath.Glob(filepath.Join(a.ugqlCacheDir(), "*.json"))
-	for _, f := range files {
-		add("v2/" + strings.TrimSuffix(filepath.Base(f), ".json"))
+	if dir := a.ugqlCacheDir(); dir != "" {
+		files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+		for _, f := range files {
+			add("v2/" + strings.TrimSuffix(filepath.Base(f), ".json"))
+		}
 	}
 	return out, cobra.ShellCompDirectiveNoFileComp
 }

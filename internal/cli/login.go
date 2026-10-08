@@ -233,7 +233,7 @@ No bearer token is sent on the login call: a stale one can turn it into a 401.
 			}
 			return nil
 		},
-		ValidArgsFunction: pathCompletion,
+		ValidArgsFunction: a.pathCompletion,
 	}
 	a.bindFlags(o, cmd, true)
 	f := cmd.Flags()

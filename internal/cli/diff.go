@@ -130,7 +130,7 @@ Exit status: 0 identical, 1 different (like diff(1)), other codes for errors.`,
 			}
 			return a.reportDiff(sides, filter, jsondiff.Options{Ignore: ignore, ArrayKey: arrayKey}, asJSON)
 		},
-		ValidArgsFunction: pathCompletion,
+		ValidArgsFunction: a.pathCompletion,
 	}
 	a.bindFlags(o, cmd, false)
 	f := cmd.Flags()

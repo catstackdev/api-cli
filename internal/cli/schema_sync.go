@@ -29,8 +29,10 @@ func (a *app) schemaSyncCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync [endpoint...]",
 		Short: "Fetch every service's schema into the local cache the fzf / tv browsers read",
-		Long: `Fetches each endpoint's schema (concurrently) into $UGQL_CACHE_DIR (default
-~/.cache/ugql) and rebuilds what the browsers read:
+		Long: `Fetches each endpoint's schema (concurrently) into $UGQL_CACHE_DIR, or by
+default into ~/.cache/ugql/<server>/ (one directory per server, so projects on
+different servers do not overwrite each other; ~/.cache/ugql/current points at
+the last one synced, for the fzf / tv browsers), and rebuilds what they read:
 
   <endpoint>.json   the introspection result
   index.txt         "<endpoint> <kind> <name>" lines (the list)
@@ -86,6 +88,9 @@ make this write outside the cache). Needs a login: this sends your token.`,
 			}
 
 			cache := a.ugqlCacheDir()
+			if cache == "" {
+				return &ExitError{Code: exitGeneric, Msg: "✗ no server to key the cache by: `api env load <suffix>`, `api env use <name>` or --base/--env first"}
+			}
 			if err := os.MkdirAll(cache, 0o755); err != nil {
 				return err
 			}
@@ -147,6 +152,14 @@ make this write outside the cache). Needs a login: this sends your token.`,
 			}
 			if err := writeFileAtomic(filepath.Join(cache, ".env"), []byte(envName+"\n"), 0o644); err != nil {
 				return err
+			}
+			if a.ugqlNested() {
+				// the fixed place the fzf / tv browsers read: the last server synced
+				if key, ok := a.ugqlKey(); ok {
+					if err := pointCurrent(a.ugqlRoot(), key); err != nil {
+						a.say("⚠ could not update " + filepath.Join(a.ugqlRoot(), "current") + ": " + err.Error())
+					}
+				}
 			}
 			a.say(fmt.Sprintf("✓ %d items in %s", len(lines), cache))
 			if fetched == 0 {
@@ -230,4 +243,15 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 	return nil
+}
+
+// pointCurrent makes <root>/current a symlink to the key's directory, replacing
+// the old one in one step so a reader never sees it missing.
+func pointCurrent(root, key string) error {
+	tmp := filepath.Join(root, ".current.tmp")
+	_ = os.Remove(tmp)
+	if err := os.Symlink(key, tmp); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(root, "current"))
 }

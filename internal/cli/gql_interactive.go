@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -138,7 +139,7 @@ func (a *app) confirm(question string) bool {
 // gqlInteractive is `api gql` with no query on a terminal (or --pick): choose the
 // endpoint, choose a query or mutation (fzf, with a preview), edit the generated
 // skeleton in your editor, run it. Mutations ask for confirmation first.
-func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter string, yes bool, item string) error {
+func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter string, yes bool, item string, noSave bool) error {
 	if endpoint == "" {
 		eps := a.schemaProfile().Endpoints
 		if len(eps) == 0 {
@@ -279,7 +280,8 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 	if err != nil {
 		return err
 	}
-	spec, err = a.newSpec("POST", gqlTarget(a.session().GraphQLURL, path), o)
+	target := gqlTarget(a.session().GraphQLURL, path)
+	spec, err = a.newSpec("POST", target, o)
 	if err != nil {
 		return err
 	}
@@ -298,7 +300,69 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 	}
 	a.say("→ " + cmdline)
 
-	return a.dispatch(ctx, spec, o, orDot(filter), "", nil)
+	// kept like an `openapi pick`, so `api again` can run it again
+	kept := ""
+	if !noSave && !o.dry {
+		kept = a.saveGQLRequest(label, kind, field, target, q, varsJSON, parsed, query, vars)
+	}
+	err = a.dispatch(ctx, spec, o, orDot(filter), "", nil)
+	if kept != "" && !o.dry {
+		a.recordRun(kept, target) // also after a failure: retry or fix it with `api again`
+		if err != nil {
+			a.hintRetry()
+		}
+	}
+	return err
+}
+
+// saveGQLRequest keeps the query under .api/requests/ as a one-request .http
+// file and returns its path ("" if it was not kept, with the reason said). The
+// file is a runnable POST: `api run` / `api again` send it like any other.
+// Variables with a secret-looking name are left out, as in the printed
+// one-liner, and a query containing {{ is not kept: the runner would expand it.
+func (a *app) saveGQLRequest(label, kind, field, target, query, varsJSON string, parsed any, skelQuery, skelVars string) string {
+	// like an openapi pick: a path on the active server, not a host that pins the
+	// file to one env and puts an internal name in something meant to be shared
+	if u, err := url.Parse(target); err == nil && u.IsAbs() && origin(target) == a.currentOrigin() {
+		target = u.RequestURI()
+	}
+	slug := strings.Trim(slugUnsafe.ReplaceAllString(label+"-"+field, "-"), "-")
+	doc := gqlRequestDoc(slug, kind, field, target, query, varsJSON, parsed)
+	if doc == "" {
+		a.say("⚠ not kept: the query contains {{ (or cannot be written on one line), which `api run` would expand")
+		return ""
+	}
+	saved, err := savePicked(slug, doc)
+	if err != nil {
+		a.say("⚠ not kept: " + err.Error())
+		return ""
+	}
+	// the generated skeleton, for `api again --default` (best effort)
+	var skelParsed any
+	_ = json.Unmarshal([]byte(skelVars), &skelParsed)
+	if skel := gqlRequestDoc(slug, kind, field, target, skelQuery, skelVars, skelParsed); skel != "" {
+		_ = os.WriteFile(saved+".orig", []byte(skel), 0o600)
+	}
+	a.say(fmt.Sprintf("✓ saved %s/%s (api run %s)", requestsDir, filepath.Base(saved), strings.TrimSuffix(filepath.Base(saved), ".http")))
+	return saved
+}
+
+// gqlRequestDoc is the one-request .http file of a query ("" when it cannot be
+// written safely: {{ would be expanded by the runner, and the body must be one
+// line). Variables with a secret-looking name are left out, as in the one-liner.
+func gqlRequestDoc(slug, kind, field, target, query, varsJSON string, parsed any) string {
+	note := ""
+	if parsed != nil && varsJSON != "{}" && hasSecretKey(parsed) {
+		varsJSON = "{}"
+		note = "# the variables were left out: a name looks like a secret\n"
+	}
+	body, err := gqlBody(query, compactJSON(varsJSON))
+	if err != nil || strings.Contains(body, "{{") || strings.ContainsAny(body, "\n\r") {
+		return ""
+	}
+	return "### " + slug + "\n" +
+		"# api gql: " + slugUnsafe.ReplaceAllString(kind+" "+field, " ") + "\n" + note +
+		"POST " + target + "\n\n" + body + "\n"
 }
 
 // findItem returns the index line (<endpoint> <kind> <name>) for "<kind> <name>".

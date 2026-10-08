@@ -12,45 +12,76 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// cacheSet is one kind of cache: a directory and the exact file patterns api
-// writes there. Only those patterns are ever deleted, never the directory: both
-// directories can be moved by an environment variable, so "remove everything
-// in it" could be pointed at something that is not ours.
+// cacheSet is one kind of cache. Only files api itself writes are ever deleted,
+// never a directory: both locations can be moved by an environment variable, so
+// "remove everything in it" could be pointed at something that is not ours.
 type cacheSet struct {
 	name     string
-	dir      string
+	dirs     []string // directories that may hold the files
 	patterns []string
+	marker   string // a file api always writes there; without it the directory is not ours
+	links    []string
+}
+
+// cachedFile is one file (or the `current` link) a clear would remove.
+type cachedFile struct {
+	path string
+	size int64
+	mod  time.Time
 }
 
 func (a *app) cacheSets() []cacheSet {
+	schemaDirs := []string{a.ugqlRoot()}
+	var links []string
+	if a.ugqlNested() {
+		// one directory per server, and the link the fzf / tv browsers read
+		sub, _ := filepath.Glob(filepath.Join(a.ugqlRoot(), "*"))
+		for _, d := range sub {
+			if st, err := os.Lstat(d); err == nil && st.IsDir() {
+				schemaDirs = append(schemaDirs, d)
+			}
+		}
+		links = []string{filepath.Join(a.ugqlRoot(), "current"), filepath.Join(a.ugqlRoot(), ".current.tmp")}
+	}
 	return []cacheSet{
-		{"openapi", a.openapiCacheDir(), []string{"*.json"}},
-		{"schema", a.ugqlCacheDir(), []string{"*.json", "index.txt", "preview.jq", ".env"}},
+		{name: "openapi", dirs: []string{a.openapiCacheDir()}, patterns: []string{"http_*.json", "https_*.json"}},
+		{name: "schema", dirs: schemaDirs, patterns: []string{"*.json", "index.txt", "preview.jq", ".env"}, marker: "preview.jq", links: links},
 	}
 }
 
-// files lists the regular files api owns in the set; symlinks are skipped
-// (removing one is harmless, but it says nothing about what it points at).
-func (c cacheSet) files() []os.FileInfo {
-	var out []os.FileInfo
+// files lists what the set owns: regular files only (a symlink says nothing
+// about what it points at), in directories that hold the marker file.
+func (c cacheSet) files() []cachedFile {
+	var out []cachedFile
 	seen := map[string]bool{}
-	for _, pat := range c.patterns {
-		m, _ := filepath.Glob(filepath.Join(c.dir, pat))
-		for _, p := range m {
-			st, err := os.Lstat(p)
-			if err != nil || !st.Mode().IsRegular() || seen[p] {
+	for _, dir := range c.dirs {
+		if c.marker != "" {
+			if st, err := os.Lstat(filepath.Join(dir, c.marker)); err != nil || !st.Mode().IsRegular() {
 				continue
 			}
-			seen[p] = true
-			out = append(out, namedInfo{st, p})
+		}
+		for _, pat := range c.patterns {
+			m, _ := filepath.Glob(filepath.Join(dir, pat))
+			for _, p := range m {
+				st, err := os.Lstat(p)
+				if err != nil || !st.Mode().IsRegular() || seen[p] {
+					continue
+				}
+				seen[p] = true
+				out = append(out, cachedFile{p, st.Size(), st.ModTime()})
+			}
+		}
+	}
+	// the `current` pointer is a symlink api made: it goes only when it is one
+	// and points at a sibling directory by a plain name
+	for _, l := range c.links {
+		if st, err := os.Lstat(l); err == nil && st.Mode()&os.ModeSymlink != 0 {
+			if t, err := os.Readlink(l); err == nil && fileSafe.MatchString(t) {
+				out = append(out, cachedFile{l, 0, st.ModTime()})
+			}
 		}
 	}
 	return out
-}
-
-type namedInfo struct {
-	os.FileInfo
-	path string
 }
 
 func (a *app) cacheCmd() *cobra.Command {
@@ -72,16 +103,16 @@ func (a *app) cacheCmd() *cobra.Command {
 				var size int64
 				var newest time.Time
 				for _, f := range files {
-					size += f.Size()
-					if f.ModTime().After(newest) {
-						newest = f.ModTime()
+					size += f.size
+					if f.mod.After(newest) {
+						newest = f.mod
 					}
 				}
 				age := "-"
 				if len(files) > 0 {
 					age = ageOf(newest)
 				}
-				rows = append(rows, []string{c.name, strconv.Itoa(len(files)), strconv.FormatInt(size, 10) + " B", age, c.dir})
+				rows = append(rows, []string{c.name, strconv.Itoa(len(files)), strconv.FormatInt(size, 10) + " B", age, c.dirs[0]})
 			}
 			ui.Table(a.io.Out, []string{"CACHE", "FILES", "SIZE", "NEWEST", "DIR"}, rows, a.colorOut())
 		},
@@ -105,7 +136,7 @@ func (a *app) cacheCmd() *cobra.Command {
 					continue
 				}
 				for _, f := range c.files() {
-					if err := os.Remove(f.(namedInfo).path); err != nil && !os.IsNotExist(err) {
+					if err := os.Remove(f.path); err != nil && !os.IsNotExist(err) {
 						return err
 					}
 					removed++

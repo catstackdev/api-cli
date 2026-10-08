@@ -32,7 +32,8 @@ internal/cli/             cobra commands; one file per concern
   request_flags.go        reqOpts + bind*Flags, positional/filter/`--` parsing
   request_print.go        curlLine (masked), execCurl, header printing
   gql.go  login.go  env.go  env_example.go  config_cmd.go  diff.go  run.go
-  history.go  doctor.go  tools.go  complete.go  secret.go  refs.go
+  history.go  again_run.go  cache.go  doctor.go  doctor_requests.go  tools.go  complete.go
+  secret.go  refs.go
   resolve.go              which server/token/profile a request may use (security core)
   tokencache.go logout.go token cache, 401 recovery, auto login, api logout
   run.go run_capture.go   .http runner and {{name.response.*}} capture
@@ -153,9 +154,22 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     `{{$env ...}}` for a foreign origin is refused without `--trust-hosts`.
     `{{$env X}}` reads `API_*` only. Line breaks in interpolated headers/URL are
     rejected.
-15. **History stores method, path and filter only**: never bodies, headers or
-    tokens; paths with secret-looking query params are not recorded. That is why
-    `again` repeats GET only.
+15. **History stores method, path, filter and the server's ORIGIN only**: never
+    bodies, headers or tokens; paths with secret-looking query params are not
+    recorded. That is why `again` repeats GET only, plus saved picks. The file is
+    global, so every view is scoped: `app.historyEntries` is the ONE list that
+    `history`, `again N`, its completion and `--pick` number from (current server
+    only; `-a`/`--all` for everything), and `again` refuses an entry whose origin
+    is not the current server's, or that has none (older lines): it must never
+    send one API's path to another. A picked request (`openapi pick`, `gql
+    --pick`) is kept as `.api/requests/<name>.http` and the history holds a
+    `RUN` POINTER (name + origin + project root), never the query. `againRun`
+    runs only `savedRequestPath(root, name)` (built from the name, never a
+    path), only in that project and server, and re-asks for anything
+    `requestIsReadOnly` does not clear, judged on the file's text now (a body
+    with `{{` is never read-only). `gql` saves without secret-looking variables
+    and never with `{{`. Tests: `history_test.go`, `again_run_test.go`
+    (mutation-checked).
 16. **HAR masking lives in `har.Build`** (headers, secret-looking JSON fields,
     query/form params). `--har-secrets` is the only way off. Do not add a path
     that writes unmasked exchanges.
@@ -274,6 +288,14 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     implementation it replaced; change either only together with those
     consumers. Output objects are built from structs, never maps, to keep key
     order.
+    The location: with `UGQL_CACHE_DIR` set the directory is flat and yours (a tv
+    channel's per-project one, the smoke test); otherwise it is
+    `~/.cache/ugql/<origin key>/` (`ugqlCacheDir`, key = the GraphQL URL's origin,
+    like the OpenAPI index) so a sync against another server cannot replace these
+    schemas, and `~/.cache/ugql/current` is a relative symlink to the last server
+    synced (`pointCurrent`), the fixed path `ugql.toml` / `up-scale.sh` read
+    because they run without the session. `cache clear` only removes files api
+    writes, in directories holding its `preview.jq`.
 
 36. **`run` captures are server data in a possibly-foreign file**
     (`run_capture.go`): `{{name.response.*}}` values are inserted as literals

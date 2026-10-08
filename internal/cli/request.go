@@ -185,7 +185,11 @@ func (a *app) dispatch(ctx context.Context, spec httpc.Spec, o *reqOpts, filter,
 	}
 	var rec *history.Entry
 	if histPath != "" {
-		rec = &history.Entry{Method: spec.Method, Path: histPath, Filter: filter}
+		// the server the request really went to (histPath may be an absolute URL);
+		// one that cannot be named is not remembered
+		if oc := origin(spec.URL); oc != "" {
+			rec = &history.Entry{Method: spec.Method, Path: histPath, Filter: filter, Origin: oc}
+		}
 	}
 	return a.finish(resp, o, filter, rec)
 }

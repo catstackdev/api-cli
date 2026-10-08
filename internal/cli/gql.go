@@ -123,6 +123,7 @@ func (a *app) gqlCmd() *cobra.Command {
 		strict   bool
 		pick     bool
 		yes      bool
+		noSave   bool
 		item     string
 	)
 	cmd := &cobra.Command{
@@ -144,7 +145,7 @@ func (a *app) gqlCmd() *cobra.Command {
 				if len(before) == 1 && isFilter(before[0]) {
 					filter = before[0]
 				}
-				return a.gqlInteractive(cmd.Context(), o, endpoint, filter, yes, item)
+				return a.gqlInteractive(cmd.Context(), o, endpoint, filter, yes, item, noSave)
 			}
 
 			resolver := a.resolverFor(srcUser, a.destOrigin(a.envName, gqlTarget(a.session().GraphQLURL, endpoint), o))
@@ -185,6 +186,7 @@ func (a *app) gqlCmd() *cobra.Command {
 	f.StringArrayVarP(&vars, "var", "V", nil, "variable key=value or key:=json (repeatable)")
 	f.BoolVar(&pick, "pick", false, "choose the endpoint and the query with fzf, edit the generated query, then run it (default with no query on a terminal)")
 	f.BoolVar(&yes, "yes", false, "with --pick: do not ask before running a mutation")
+	f.BoolVar(&noSave, "no-save", false, "with --pick: do not keep the request under "+requestsDir+"/ (so `api again` cannot repeat it)")
 	f.StringVar(&item, "item", "", `implies --pick: use this "<query|mutation> <name>" instead of choosing it with fzf (for tv, editors)`)
 	f.BoolVar(&strict, "strict", false, "exit 4 when the response has GraphQL errors")
 	_ = cmd.RegisterFlagCompletionFunc("endpoint", a.endpointCompletion)
@@ -217,7 +219,7 @@ func (a *app) formCmd() *cobra.Command {
 			spec.Fields, spec.Data = fields, data
 			return a.dispatch(cmd.Context(), spec, o, filter, target, pass)
 		},
-		ValidArgsFunction: pathCompletion,
+		ValidArgsFunction: a.pathCompletion,
 	}
 	a.bindFlags(o, cmd, false)
 	cmd.Flags().StringArrayVarP(&fields, "form", "F", nil, "multipart field key=value or key=@file (repeatable)")

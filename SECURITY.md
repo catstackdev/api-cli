@@ -135,7 +135,12 @@ origin), so it lives longer than the shell that logged in: `api logout` removes 
 | ---- | ---- | ----- |
 | `--dry`, `--debug` and `API_DEBUG` print the request with secrets masked | `curlLine()` | `TestDebugAndDryOutputNeverContainSecrets` |
 | HAR files mask credential headers, secret-looking JSON fields, form pairs and query parameters unless `--har-secrets` | `Build()` `maskBody()` | `TestSecretsAreMaskedByDefault` `TestHARExport` |
-| History stores method, path and filter only; paths with secret-looking query parameters are not recorded | `Safe()` | `TestSecretsAreNeverRecorded` `TestHistoryAndAgain` |
+| History stores method, path, filter, the server's origin and (for a saved pick) a file name and project: never bodies, headers or tokens; paths with secret-looking query parameters are not recorded | `Safe()` `Record()` | `TestSecretsAreNeverRecorded` `TestHistoryAndAgain` `TestPickedGQLIsKeptAndAgainRunsItAgain` |
+| A history entry belongs to the server it went to: `history`, `again` and path completion list that server's entries only, and `again` refuses one for another server (or from before servers were recorded) instead of sending it | `historyEntries()` `ForOrigin()` | `TestHistoryIsScopedToTheServer` `TestEntriesAreScopedToTheirServer` |
+| `again` on a saved pick runs only a file named in the history, built from the name alone (never a path), in the project and for the server it was saved for, and asks again for anything that is not read-only, judged on the file's text now | `againRun()` `savedRequestPath()` `requestIsReadOnly()` | `TestAgainRefusesAPickFromAnotherProjectOrServer` `TestSavedRequestPathIsBuiltFromANameOnly` `TestRequestIsReadOnlyJudgesTheTextThatWillBeSent` `TestAgainAsksBeforeRepeatingAMutationAndEditRunsACopy` |
+| A `gql` pick is kept without secret-looking variables and never with `{{` | `saveGQLRequest()` | `TestAgainAsksBeforeRepeatingAMutationAndEditRunsACopy` |
+| `cache clear` removes only files api writes (never a directory, a symlink target, or a directory without api's `preview.jq`) | `files()` | `TestCacheClearOnlyRemovesOwnFiles` `TestCacheClearWalksTheServerDirectoriesOfTheDefaultCache` |
+| The GraphQL schema cache is keyed by the server's origin, so one server's sync cannot replace another's | `ugqlCacheDir()` | `TestSchemaSyncKeepsEachServersCacheApart` |
 | `env example` never prints values (secret-looking keys and credential URLs stay blank even with `--keep-values`) | `Example()` | `TestExampleNeverLeaksValuesByDefault` `TestEnvExampleNeverPrintsValues` |
 | Config errors name the key, never the value | `ParseText()` | `TestSecretsAndUnknownKeysAreRejectedOnRead` |
 

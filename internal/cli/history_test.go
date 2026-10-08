@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,7 @@ func TestHistoryAndAgain(t *testing.T) {
 	state := t.TempDir()
 	runS := func(args ...string) result { // same state dir across calls
 		t.Helper()
+		defer leaveSourceTree(t)()
 		var out, errb bytes.Buffer
 		t.Setenv("XDG_STATE_HOME", state)
 		if os.Getenv("API_CONFIG") == "" {
@@ -98,5 +100,79 @@ func TestAgainPickWithFzf(t *testing.T) {
 	t.Setenv("PATH", t.TempDir()) // no fzf at all
 	if r := runQ("again", "--pick"); r.code != 1 || !strings.Contains(r.err, "needs fzf") {
 		t.Fatalf("%+v", r)
+	}
+}
+
+// The history file is shared by every project, so a request belongs to the
+// server it went to: the default list, `again` and completion never mix them,
+// and an entry for another server (or from before servers were recorded) is
+// refused instead of being sent to the wrong API.
+func TestHistoryIsScopedToTheServer(t *testing.T) {
+	var hitA, hitB []string
+	a := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitA = append(hitA, r.URL.Path)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	b := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitB = append(hitB, r.URL.Path)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(a.Close)
+	t.Cleanup(b.Close)
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	t.Setenv("API_CONFIG", filepath.Join(t.TempDir(), "none.toml"))
+	t.Setenv("API_GRAPHQL_URL", "")
+	t.Setenv("API_TOKEN", "")
+	t.Setenv("API_ENV", "")
+	_ = os.MkdirAll(filepath.Join(state, "api"), 0o700)
+	_ = os.WriteFile(filepath.Join(state, "api", "history"), []byte("GET\t/legacy\t\n"), 0o600)
+	runOn := func(base string, args ...string) result {
+		t.Helper()
+		defer leaveSourceTree(t)()
+		t.Setenv("API_BASE_URL", base)
+		var out, errb bytes.Buffer
+		code := Run(context.Background(), args, IO{In: strings.NewReader(""), Out: &out, Err: &errb})
+		return result{code, out.String(), errb.String()}
+	}
+
+	runOn(a.URL, "get", "/only-a")
+	runOn(b.URL, "get", "/only-b")
+
+	r := runOn(b.URL, "history")
+	if !strings.Contains(r.out, "/only-b") || strings.Contains(r.out, "/only-a") || strings.Contains(r.out, "/legacy") {
+		t.Fatalf("history must list the current server only: %+v", r)
+	}
+	if !strings.Contains(r.err, "api history -a") {
+		t.Fatalf("it must say the rest exists: %+v", r)
+	}
+	r = runOn(b.URL, "history", "-a")
+	for _, want := range []string{"/only-a", "/only-b", "/legacy", "(no server)", a.URL, b.URL} {
+		if !strings.Contains(r.out, want) {
+			t.Fatalf("history -a lacks %q:\n%s", want, r.out)
+		}
+	}
+
+	// the numbers of `again` are the numbers `history` shows
+	hitB = nil
+	if r := runOn(b.URL, "again", "1", "-c"); r.code != 0 || len(hitB) != 1 || hitB[0] != "/only-b" {
+		t.Fatalf("again 1: %+v hit=%v", r, hitB)
+	}
+	// --all numbering: 1 = /only-b (just run), 2 = /only-a, 3 = /legacy
+	hitB = nil
+	if r := runOn(b.URL, "again", "--all", "2"); r.code != 1 || !strings.Contains(r.err, a.URL) || len(hitB) != 0 {
+		t.Fatalf("another server's entry must be refused, not sent: %+v hit=%v", r, hitB)
+	}
+	if r := runOn(b.URL, "again", "--all", "3"); r.code != 1 || !strings.Contains(r.err, "without a server") || len(hitB) != 0 {
+		t.Fatalf("a legacy entry must be refused: %+v", r)
+	}
+	// and from the first server the other way round
+	hitA = nil
+	if r := runOn(a.URL, "again", "1", "-c"); r.code != 0 || len(hitA) != 1 || hitA[0] != "/only-a" {
+		t.Fatalf("on A, 1 is A's request: %+v hit=%v", r, hitA)
+	}
+	// completion offers this server's paths only
+	if out := complete(t, "get", "/o"); strings.Contains(out, "/only-b") || !strings.Contains(out, "/only-a") {
+		t.Fatalf("completion on A:\n%s", out)
 	}
 }

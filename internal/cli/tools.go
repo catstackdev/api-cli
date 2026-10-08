@@ -100,7 +100,7 @@ func (a *app) watchCmd() *cobra.Command {
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 			if len(args) == 1 {
-				return pathCompletion(cmd, nil, toComplete)
+				return a.pathCompletion(cmd, nil, toComplete)
 			}
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
@@ -129,7 +129,7 @@ func (a *app) headersCmd() *cobra.Command {
 			writeHeaders(a.io.Out, "", resp.Header, color)
 			return nil
 		},
-		ValidArgsFunction: pathCompletion,
+		ValidArgsFunction: a.pathCompletion,
 	}
 	a.bindFlags(o, cmd, false)
 	return cmd
@@ -161,7 +161,7 @@ func (a *app) timeCmd() *cobra.Command {
 			fmt.Fprintf(a.io.Out, "%-8s%d\n", "status", t.Status)
 			return nil
 		},
-		ValidArgsFunction: pathCompletion,
+		ValidArgsFunction: a.pathCompletion,
 	}
 	a.bindFlags(o, cmd, false)
 	return cmd

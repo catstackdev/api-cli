@@ -106,7 +106,7 @@ api diff --envs dev,thien /users/1 .data
 | `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)                    |
 | `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)                    |
 | `openapi [sync\|list\|pick\|show]`               | index an OpenAPI JSON spec; pick, edit, save, run               |
-| `history`, `again [N]`                           | recent requests; repeat a GET                                   |
+| `history [-a]`, `again [N] [--edit]`             | requests to this server; repeat a GET or a saved pick           |
 | `cache status`, `cache clear [openapi\|schema]`  | size/age of the OpenAPI and schema caches; delete them          |
 | `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)                            |
 | `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                               |
@@ -320,9 +320,11 @@ api schema sync --prefix v2/ user auth    # concurrent; rebuilds ~/.cache/ugql f
 ```
 
 `sync` writes `<endpoint>.json`, `index.txt`, `preview.jq` and `.env` in
-`$UGQL_CACHE_DIR` (default `~/.cache/ugql`), in the same format the fzf pickers
-and the television channel already read (the previews stay `jq`: they run in
-subprocesses). With no endpoint it uses the env's `endpoints` from the config;
+`$UGQL_CACHE_DIR` if you set it (flat, your own directory), and otherwise in
+`~/.cache/ugql/<server>/`, one directory per server, so a project on another
+server cannot overwrite these schemas. `~/.cache/ugql/current` is a link to the
+last server synced: the fzf pickers and the television channel read it (same
+format as before; the previews stay `jq`: they run in subprocesses). With no endpoint it uses the env's `endpoints` from the config;
 names become file names, so only letters, digits and `_ - .` are accepted.
 `--dry` prints the requests and writes nothing.
 
@@ -668,9 +670,31 @@ tokens. `{{...}}` is not expanded inside assertions. VS Code and JetBrains
 ignore the unknown comment, so the same file works there.
 
 **`api history`, `api again [N]`** list and repeat recent requests. Only the
-method, path and filter are stored (never bodies, headers or tokens; a path with
-a secret-looking query parameter is not recorded), so only GET can be repeated.
-`again --pick` chooses with fzf.
+method, path, filter and the **server** (its origin, not a token) are stored:
+never bodies, headers or tokens, and a path with a secret-looking query
+parameter is not recorded. The file is shared by every project, so `history`
+and `again` only see requests to the server the shell points at (`history -a`
+shows all of them, with the server; entries from before servers were recorded
+show as `(no server)` and are never repeated). `again` refuses an entry that
+went to another server instead of sending it to this one. A GET is repeated from
+its path. `again --pick` chooses with fzf.
+
+What you pick with `api openapi pick` or `api gql --pick` is kept as a file in
+`.api/requests/` (`--no-save` skips that), next to a `.orig` copy of the
+skeleton it generated, and the history holds a pointer to it (`RUN  <name>`),
+not the query. It is remembered even when the request failed (a 400 for a body
+you still have to fix). `api again` runs that file again, only from the project
+it was saved in and for the same server, and asks again before anything that
+changes data (`--yes` skips the question).
+
+`api again --edit` opens the file in your editor: save to run it, quit without
+saving to cancel. What you saved stays, whether or not the run worked, so the
+next `--edit` starts from your last attempt; the version it replaced is kept
+once as `<name>.http.bak`. `api again --default` starts that edit from the
+original skeleton instead (the `.orig` copy), when you want to begin again.
+
+A `gql` query containing `{{`, or whose variables look like secrets, is saved
+without them (the runner would expand `{{`).
 
 **`--har file`** appends the exchange to a HAR 1.2 file for bug reports or
 devtools: credential headers, cookies, secret-looking JSON fields and query
@@ -788,7 +812,7 @@ failed · `4` GraphQL errors (`--strict`) · `5` bad jq filter · `22` HTTP >= 4
 - `env load`: the `.env.<suffix>` files of the project
 - `run`: saved files, then the requests inside the chosen file
 - `again`: the history entries; `-H`: common headers
-- `gql -e`: the env's `endpoints`, `$API_GQL_ENDPOINTS`, `~/.cache/ugql/*.json`
+- `gql -e`: the env's `endpoints`, `$API_GQL_ENDPOINTS`, `~/.cache/ugql/<server>/*.json`
 
 Completion is offline and fast; it never calls the network.
 
