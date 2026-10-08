@@ -3,8 +3,8 @@
 REST + GraphQL client for the terminal, written in Go. It replaces the zsh
 helpers in `src/curl.sh` (`cget`, `cpost`, `cgql`, ...) with one binary that has
 real tab completion, a built-in jq, coloured output, a pager, config with named
-envs, a two-env diff, saved requests and more. A small zsh wrapper, built into the binary
-(`api shell-init`), wires it into the shell.
+envs, a two-env diff, saved requests and more. A small zsh wrapper, built into
+the binary (`api shell-init`), wires it into the shell.
 
 `curl.sh` still exists and keeps working. `api` is a separate namespace;
 `src/up-scale.sh` is already built on it.
@@ -21,9 +21,9 @@ api doctor          # checks the whole setup (--json for scripts and CI)
 
 The binary is all you install: `api shell-init` prints the shell wrapper and the
 completion script (both embedded), so there is no file to copy. The line it adds
-is `eval "$(command api shell-init)"` (`... shell-init bash` for bash 3.2+;
-bash completion needs bash 4+ and bash-completion). Without it, requests still
-work, but `login` and `env load|use|clear` cannot change your shell.
+is `eval "$(command api shell-init)"` (`... shell-init bash` for bash 3.2+; bash
+completion needs bash 4+ and bash-completion). Without it, requests still work,
+but `login` and `env load|use|clear` cannot change your shell.
 
 Shell start-up runs the binary once. To skip that, cache its output and
 regenerate it only when the binary is newer (the same trick the profile uses for
@@ -90,29 +90,29 @@ api diff --envs dev,thien /users/1 .data
 
 ## Commands
 
-| Command                                          | What it does                                      |
-| ------------------------------------------------ | ------------------------------------------------- |
-| `get\|del <path> [.filter]`                      | GET / DELETE                                      |
-| `post\|put\|patch <path> [body] [.f]`            | send a JSON body (arg, `@file`, `-`, stdin)       |
-| `form <path> -F k=v -F f=@file`                  | multipart (`-F`) or urlencoded (`-d`)             |
-| `gql [-e endpoint] <query> [vars]`               | GraphQL; `@file`, stdin, `-V k=v` variables       |
-| `login <path> [body] [.token-path]`              | REST login, sets `API_TOKEN`                      |
-| `login --gql [-e ep] <mutation> [-V k=v]`        | GraphQL login (default `.data.login.accessToken`) |
-| `env status\|load\|use\|clear\|list\|root`       | session and `.env` files                          |
-| `env example [--write\|--check]`, `env init <s>` | generate / check `.env.example`, scaffold         |
-| `config path\|show\|get\|set\|init\|edit`        | global + project config                           |
-| `diff --envs a,b <path>`                         | same request to two envs, structural JSON diff    |
-| `run <file\|name> [request]`                     | saved requests from `.http` files                 |
-| `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)      |
-| `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)      |
-| `openapi [sync\|list\|pick\|show]`               | index an OpenAPI JSON spec; pick, edit, save, run |
-| `history`, `again [N]`                           | recent requests; repeat a GET                     |
-| `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)              |
-| `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                 |
-| `headers <path>`, `time <path>`                  | response headers / dns-tls-ttfb timing            |
-| `doctor [--online] [--fix]`                      | check binary, shim, completion, config, session   |
-| `shell-init [zsh\|bash] [--install]`             | the shell wrapper + completion; `--install` adds it to your rc |
-| `completion zsh`                                 | just the completion script (shell-init embeds it) |
+| Command                                          | What it does                                                    |
+| ------------------------------------------------ | --------------------------------------------------------------- |
+| `get\|del <path> [.filter]`                      | GET / DELETE                                                    |
+| `post\|put\|patch <path> [body] [.f]`            | send a JSON body (arg, `@file`, `-`, stdin)                     |
+| `form <path> -F k=v -F f=@file`                  | multipart (`-F`) or urlencoded (`-d`)                           |
+| `gql [-e endpoint] <query> [vars]`               | GraphQL; `@file`, stdin, `-V k=v` variables                     |
+| `login <path> [body] [.token-path]`              | REST login, sets `API_TOKEN`                                    |
+| `login --gql [-e ep] <mutation> [-V k=v]`        | GraphQL login (default `.data.login.accessToken`)               |
+| `env status\|load\|use\|clear\|list\|root`       | session and `.env` files                                        |
+| `env example [--write\|--check]`, `env init <s>` | generate / check `.env.example`, scaffold                       |
+| `config path\|show\|get\|set\|init\|edit`        | global + project config                                         |
+| `diff --envs a,b <path>`                         | same request to two envs, structural JSON diff                  |
+| `run <file\|name> [request]`                     | saved requests from `.http` files                               |
+| `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)                    |
+| `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)                    |
+| `openapi [sync\|list\|pick\|show]`               | index an OpenAPI JSON spec; pick, edit, save, run               |
+| `history`, `again [N]`                           | recent requests; repeat a GET                                   |
+| `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)                            |
+| `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                               |
+| `headers <path>`, `time <path>`                  | response headers / dns-tls-ttfb timing                          |
+| `doctor [--online] [--fix]`                      | check binary, shim, completion, config, session, saved requests |
+| `shell-init [zsh\|bash] [--install]`             | the shell wrapper + completion; `--install` adds it to your rc  |
+| `completion zsh`                                 | just the completion script (shell-init embeds it)               |
 
 Any argument starting with `.` is a jq filter (`./file` and `../file` are
 paths). The last filter wins. User-defined `[alias]` entries from config also
@@ -346,13 +346,12 @@ its old `API_TOKEN` until you run `api login`: the next call just recovers
 again. `api env status` shows the cached token's expiry for JWTs.
 
 `api env status` also says where each value came from (`--base`, `--env`,
-`default_env`, or the shell session) and which file defines the profile
-(global, project). A profile is called a match only when it describes the same
-server as the shell (same origin), never because the env name is the same.
-`env load` and `env use` record which of them set the session
-(`API_ENV_FROM`, display only), so status says `.env.local (api env load)` or
-`toml env.local (api env use)`. A shell started before that shows what the
-variables alone can prove.
+`default_env`, or the shell session) and which file defines the profile (global,
+project). A profile is called a match only when it describes the same server as
+the shell (same origin), never because the env name is the same. `env load` and
+`env use` record which of them set the session (`API_ENV_FROM`, display only),
+so status says `.env.local (api env load)` or `toml env.local (api env use)`. A
+shell started before that shows what the variables alone can prove.
 
 `api secret`: `set NAME [--for URL]... [--stdin]` (replacing the password keeps
 its binding; `--unbind` drops it), `bind NAME URL...`, `show NAME` (the value
@@ -589,11 +588,11 @@ never deletes its seed users, so the files can be re-run. In Neovim, start
 `nvim` inside `examples/` so a terminal inherits that directory.
 
 **From a browser request.** `pbpaste | api import` turns a copied curl command
-(DevTools "Copy as cURL") into a `.http` request and prints it; it sends
-nothing and changes no session or config. Add `--out file.http` to append it to
-a file (never overwritten). The active server becomes `{{graphql}}` / `{{base}}`
-(so the file follows `api env use`), a GraphQL body is detected and named after
-its operation, a real bearer token becomes `{{token}}`, and every other
+(DevTools "Copy as cURL") into a `.http` request and prints it; it sends nothing
+and changes no session or config. Add `--out file.http` to append it to a file
+(never overwritten). The active server becomes `{{graphql}}` / `{{base}}` (so
+the file follows `api env use`), a GraphQL body is detected and named after its
+operation, a real bearer token becomes `{{token}}`, and every other
 secret-looking value (headers, JSON fields, query parameters) becomes
 `{{$env API_NAME}}`: it is read from your shell when the request runs and is
 never written to the file. What is left out is listed with its reason in a
@@ -601,12 +600,13 @@ comment: `browser` (`sec-*`, `user-agent`, `referer`, ...), `cache` (an
 `If-None-Match` would make the server answer an empty 304), `tracing`, the
 browser's `Cookie` (not your API credential), `already sent by api` (a default
 `Accept`), and `already in your env` (a header your env profile sends). A header
-it does not recognise is kept but flagged with `# check:` so you can delete it if
-the request works without it; `--minimal` drops those too and `--keep NAME`
-keeps one that was dropped (a kept cookie is still a reference, never a value). Pass the command on stdin rather than as an
-argument: it contains quotes and tokens, and an argument lands in your shell
-history. Pipes, redirects, `-F`, `@file` and anything that would add a line or a
-`{{...}}` to the file are refused.
+it does not recognise is kept but flagged with `# check:` so you can delete it
+if the request works without it; `--minimal` drops those too and `--keep NAME`
+keeps one that was dropped (a kept cookie is still a reference, never a value).
+Pass the command on stdin rather than as an argument: it contains quotes and
+tokens, and an argument lands in your shell history. Pipes, redirects, `-F`,
+`@file` and anything that would add a line or a `{{...}}` to the file are
+refused.
 
 The next sections list every variable, the response capture and the checks.
 

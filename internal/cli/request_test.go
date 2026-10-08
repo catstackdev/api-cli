@@ -497,3 +497,16 @@ func TestCompletion(t *testing.T) {
 		t.Fatalf("endpoint completion:\n%s", out.String())
 	}
 }
+
+// Cobra does not complete aliases, so the uppercase verbs are offered by the
+// root's own completion, and only once an uppercase letter is typed.
+func TestUppercaseVerbsAreCompleted(t *testing.T) {
+	for typed, want := range map[string]string{"GE": "GET", "P": "POST", "D": "DELETE"} {
+		if out := complete(t, typed); !strings.Contains(out, want+"\t") {
+			t.Errorf("%q: want %s:\n%s", typed, want, out)
+		}
+	}
+	if out := complete(t, "ge"); strings.Contains(out, "GET\t") {
+		t.Errorf("lowercase must not list the uppercase aliases:\n%s", out)
+	}
+}

@@ -282,6 +282,24 @@ func (a *app) rootCmd() *cobra.Command {
 		return []cobra.Completion{"auto", "always", "never"}, cobra.ShellCompDirectiveNoFileComp
 	})
 
+	// Cobra completes command names but not aliases, so GET/POST/... would never
+	// be offered. Only once an uppercase letter is typed: lowercase TAB keeps
+	// the plain list.
+	root.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+		if len(args) > 0 || toComplete == "" || toComplete[0] < 'A' || toComplete[0] > 'Z' {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		var out []cobra.Completion
+		for _, c := range root.Commands() {
+			for _, al := range c.Aliases {
+				if al == strings.ToUpper(al) && strings.HasPrefix(al, toComplete) {
+					out = append(out, cobra.CompletionWithDesc(al, c.Short))
+				}
+			}
+		}
+		return out, cobra.ShellCompDirectiveNoFileComp
+	}
+
 	root.AddCommand(
 		a.verbCmd("get", "GET", false, "GET a path", "GET"),
 		a.verbCmd("del", "DELETE", false, "DELETE a path", "delete", "DELETE"),

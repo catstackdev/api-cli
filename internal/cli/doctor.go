@@ -194,6 +194,7 @@ func (a *app) doctorChecks() []check {
 		a.checkTools(),
 		checkHistory(),
 		checkEnvFiles(),
+		checkRequestFiles(),
 		checkCurlrc(),
 	} {
 		out = append(out, group...)
@@ -214,21 +215,18 @@ func (a *app) checkShim() check {
 	}
 }
 
-// checkCompletion compares the zsh completion cache with the binary.
+// checkCompletion: the completion script is embedded in the binary and sourced
+// by the shim, so nothing is cached. An old ~/.cache/api-completion.zsh from
+// the previous design is unused; say so instead of judging its age.
 func checkCompletion(exe string) []check {
 	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
+	if err == nil {
+		legacy := filepath.Join(home, ".cache", "api-completion.zsh")
+		if _, err := os.Stat(legacy); err == nil {
+			return []check{newCheck("completion", lvlOK, "embedded in the binary (the shim loads it); %s is a leftover, safe to delete", legacy)}
+		}
 	}
-	cache := filepath.Join(home, ".cache", "api-completion.zsh")
-	st, err := os.Stat(cache)
-	if err != nil {
-		return []check{newCheck("completion", lvlWarn, "no cache at %s: open a new interactive zsh", cache)}
-	}
-	if exeStat, err := os.Stat(exe); err == nil && exeStat.ModTime().After(st.ModTime()) {
-		return []check{newCheck("completion", lvlWarn, "cache is older than the binary: it refreshes on the next new shell")}
-	}
-	return []check{newCheck("completion", lvlOK, "%s", cache)}
+	return []check{newCheck("completion", lvlOK, "embedded in the binary (the shim loads it)")}
 }
 
 func (a *app) checkConfig() check {

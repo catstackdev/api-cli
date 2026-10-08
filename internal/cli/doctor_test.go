@@ -156,3 +156,25 @@ func TestDoctorJSON(t *testing.T) {
 		t.Fatalf("JSON mode must not mix in the human summary: %+v", r)
 	}
 }
+
+// Saved requests are meant to be committed, so doctor never asks to ignore
+// them; it only flags literal credentials, by name and never by value.
+func TestDoctorFlagsLiteralSecretsInSavedRequests(t *testing.T) {
+	dir := projectWith(t, map[string]string{".env": "A=1\n"})
+	_ = os.MkdirAll(filepath.Join(dir, ".git"), 0o700)
+	reqs := filepath.Join(dir, ".api", "requests")
+	_ = os.MkdirAll(reqs, 0o700)
+	_ = os.WriteFile(filepath.Join(reqs, "ok.http"), []byte("GET /users?limit=5\nAuthorization: Bearer {{token}}\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(reqs, "bad.http"), []byte("POST /login?api_key=hunter2\nX-Api-Key: hunter2\nContent-Type: application/json\n\n{\"password\": \"hunter2\", \"name\": \"x\"}\n"), 0o600)
+
+	r := run(t, "", "doctor")
+	if !strings.Contains(r.out, "bad.http (X-Api-Key, api_key, password)") {
+		t.Fatalf("bad.http not flagged:\n%s", r.out)
+	}
+	if strings.Contains(r.out, "ok.http") || strings.Contains(r.out+r.err, "hunter2") {
+		t.Fatalf("clean file flagged or value leaked:\n%s", r.out)
+	}
+	if strings.Contains(r.out, ".api/ ") {
+		t.Fatalf("must not ask to ignore .api:\n%s", r.out)
+	}
+}
