@@ -32,11 +32,14 @@ internal/cli/             cobra commands; one file per concern
   request_flags.go        reqOpts + bind*Flags, positional/filter/`--` parsing
   request_print.go        curlLine (masked), execCurl, header printing
   gql.go  login.go  env.go  env_example.go  config_cmd.go  diff.go  run.go
-  history.go  again_run.go  cache.go  doctor.go  doctor_requests.go  tools.go  complete.go
+  history.go  again_run.go  import.go  cache.go  doctor.go  doctor_requests.go  tools.go  complete.go
   secret.go  refs.go
   resolve.go              which server/token/profile a request may use (security core)
   tokencache.go logout.go token cache, 401 recovery, auto login, api logout
   run.go run_capture.go   .http runner and {{name.response.*}} capture
+  run_assert.go             `# @assert` evaluation for `run` (exit 3)
+  env_map.go                `env load` URL-variable mapping (gotcha 18)
+  pick.go                   fzf selection shared by the pickers
   schema.go schema_sync.go  introspection commands; `schema sync` (cache writer)
   schema_pick.go            fzf browser, editor
   openapi.go                `openapi sync|list`, per-server index cache, verb path completion
@@ -396,14 +399,19 @@ make check                 # gofmt + vet + go test -race -shuffle=on (run before
 make test                  # go test -count=1 -race ./... (no shuffle)
 go test -count=1 -race ./internal/cli -run TestLogin   # single test / package
 make build                 # -> bin/api (the shim finds it without install)
+make lint                  # golangci-lint when installed, else skipped
 make fuzz [FUZZTIME=30s]   # every fuzz target; their seeds already run in `make check`
 make cover                 # coverage summary (cover.out is gitignored)
 make vuln                  # govulncheck (network; pinned version; not part of check)
 make release               # static binaries + SHA256SUMS in dist/ (gitignored)
-make e2e                   # shim end to end (34 checks), needs python3 + localhost
-make smoke                 # whole tool end to end (40 checks), see below
+make install-skill         # copy skills/api-cli.md to the user's skills dir
+make e2e                   # shim end to end, needs python3 + localhost
+make smoke                 # whole tool end to end, see below
 ```
 
+- Project skills in `.claude/skills/`: `api-add-command` (new command or flag),
+  `api-security-change` (anything in `SECURITY.md`'s scope), `api-verify`
+  (checks to run before calling a change done). Use them instead of improvising.
 - A fuzz failure writes its input to `testdata/fuzz/<Target>/`: keep that file,
   it becomes a regression seed. Before trusting a failing property, check
   whether the property is wrong (the first finding, a repeated `.env` key, was a
