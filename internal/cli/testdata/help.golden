@@ -6,6 +6,7 @@ Usage:
 
 Available Commands:
   again       Repeat the Nth most recent GET request (default: the last one)
+  cache       Show or clear the caches (OpenAPI indexes, GraphQL schemas)
   config      Show and edit the global / project config (envs, defaults, aliases)
   del         DELETE a path
   diff        Send the same request to two envs and show how the JSON differs
@@ -80,6 +81,62 @@ Flags:
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api cache =====
+The caches are safe to delete: api rebuilds them with `api openapi sync` and
+`api schema sync`. History (`api history clear`), cached login tokens
+(`api logout --all`) and .api/requests/ are not caches and are never touched here.
+
+Usage:
+  api cache [command]
+
+Available Commands:
+  clear       Delete a cache (default: all)
+  status      Size and age of each cache
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api cache [command] --help" for more information about a command.
+
+===== api cache clear =====
+Delete a cache (default: all)
+
+Usage:
+  api cache clear [openapi|schema|all] [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api cache status =====
+Size and age of each cache
+
+Usage:
+  api cache status [flags]
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)

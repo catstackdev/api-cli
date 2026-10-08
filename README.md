@@ -107,6 +107,7 @@ api diff --envs dev,thien /users/1 .data
 | `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)                    |
 | `openapi [sync\|list\|pick\|show]`               | index an OpenAPI JSON spec; pick, edit, save, run               |
 | `history`, `again [N]`                           | recent requests; repeat a GET                                   |
+| `cache status`, `cache clear [openapi\|schema]`  | size/age of the OpenAPI and schema caches; delete them          |
 | `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)                            |
 | `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                               |
 | `headers <path>`, `time <path>`                  | response headers / dns-tls-ttfb timing                          |
