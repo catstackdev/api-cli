@@ -283,11 +283,11 @@ func (a *app) rootCmd() *cobra.Command {
 	})
 
 	root.AddCommand(
-		a.verbCmd("get", "GET", false, "GET a path"),
-		a.verbCmd("del", "DELETE", false, "DELETE a path", "delete"),
-		a.verbCmd("post", "POST", true, "POST a JSON body"),
-		a.verbCmd("put", "PUT", true, "PUT a JSON body"),
-		a.verbCmd("patch", "PATCH", true, "PATCH with a JSON body"),
+		a.verbCmd("get", "GET", false, "GET a path", "GET"),
+		a.verbCmd("del", "DELETE", false, "DELETE a path", "delete", "DELETE"),
+		a.verbCmd("post", "POST", true, "POST a JSON body", "POST"),
+		a.verbCmd("put", "PUT", true, "PUT a JSON body", "PUT"),
+		a.verbCmd("patch", "PATCH", true, "PATCH with a JSON body", "PATCH"),
 		a.formCmd(),
 		a.gqlCmd(),
 		a.loginCmd(),

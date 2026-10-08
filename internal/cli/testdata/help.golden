@@ -290,7 +290,7 @@ Usage:
   api del <path> [.filter] [-- curl args] [flags]
 
 Aliases:
-  del, delete
+  del, delete, DELETE
 
 Examples:
   api del /users '.data[0].id'
@@ -639,6 +639,9 @@ GET a path
 
 Usage:
   api get <path> [.filter] [-- curl args] [flags]
+
+Aliases:
+  get, GET
 
 Examples:
   api get /users '.data[0].id'
@@ -1166,6 +1169,9 @@ PATCH with a JSON body
 Usage:
   api patch <path> [body] [.filter] [-- curl args] [flags]
 
+Aliases:
+  patch, PATCH
+
 Examples:
   api patch /users '.data[0].id'
 
@@ -1208,6 +1214,9 @@ POST a JSON body
 Usage:
   api post <path> [body] [.filter] [-- curl args] [flags]
 
+Aliases:
+  post, POST
+
 Examples:
   api post /users '.data[0].id'
 
@@ -1249,6 +1258,9 @@ PUT a JSON body
 
 Usage:
   api put <path> [body] [.filter] [-- curl args] [flags]
+
+Aliases:
+  put, PUT
 
 Examples:
   api put /users '.data[0].id'
