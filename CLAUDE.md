@@ -40,6 +40,7 @@ internal/cli/             cobra commands; one file per concern
   run_assert.go             `# @assert` evaluation for `run` (exit 3)
   env_map.go                `env load` URL-variable mapping (gotcha 18)
   pick.go                   fzf selection shared by the pickers
+  table.go                  JSON result -> table (`--table`); rendering is in internal/ui
   schema.go schema_sync.go  introspection commands; `schema sync` (cache writer)
   schema_pick.go            fzf browser, editor
   openapi.go                `openapi sync|list`, per-server index cache, verb path completion
