@@ -5,32 +5,32 @@ Usage:
   api [command]
 
 Available Commands:
-  again       Repeat the Nth most recent GET request (default: the last one)
-  cache       Show or clear the caches (OpenAPI indexes, GraphQL schemas)
-  config      Show and edit the global / project config (envs, defaults, aliases)
-  del         DELETE a path
-  diff        Send the same request to two envs and show how the JSON differs
-  doctor      Check the setup: binary, shell shim, completion, config, session, tools, .env permissions
-  env         Show, load or clear the API session (API_BASE_URL, API_TOKEN, ...)
-  form        POST multipart (-F) or urlencoded (-d) form data
-  get         GET a path
-  gql         GraphQL request against $API_GRAPHQL_URL (or $API_BASE_URL/graphql)
-  headers     GET a path and print only the response headers
-  history     List recent requests (method, path, filter: never bodies or tokens)
-  import      Convert a copied curl command into a .http request (prints; sends nothing)
-  json        Build a JSON object from key=value / key:=json arguments
-  login       Log in (REST or GraphQL) and store the token as API_TOKEN
-  logout      Forget this shell's token and the cached token of the env
-  openapi     Index an OpenAPI/Swagger JSON spec for completion (sync, list)
-  patch       PATCH with a JSON body
-  post        POST a JSON body
-  put         PUT a JSON body
-  run         Run saved requests from a .http file (JetBrains / VS Code REST Client format)
-  schema      Explore a GraphQL service by introspection (names, types, local cache)
-  secret      Store passwords in the system credential store (macOS Keychain)
-  shell-init  Print the shell integration (login, env load/use/clear, completion)
-  time        Request timing breakdown: dns / connect / tls / ttfb / total
-  watch       GET a path every interval until Ctrl+C
+  again        Repeat the Nth most recent GET request (default: the last one)
+  cache        Show or clear the caches (OpenAPI indexes, GraphQL schemas)
+  config       Show and edit the global / project config (envs, defaults, aliases)
+  del, DELETE  DELETE a path
+  diff         Send the same request to two envs and show how the JSON differs
+  doctor       Check the setup: binary, shell shim, completion, config, session, tools, .env permissions
+  env          Show, load or clear the API session (API_BASE_URL, API_TOKEN, ...)
+  form         POST multipart (-F) or urlencoded (-d) form data
+  get, GET     GET a path
+  gql          GraphQL request against $API_GRAPHQL_URL (or $API_BASE_URL/graphql)
+  headers      GET a path and print only the response headers
+  history      List recent requests (method, path, filter: never bodies or tokens)
+  import       Convert a copied curl command into a .http request (prints; sends nothing)
+  json         Build a JSON object from key=value / key:=json arguments
+  login        Log in (REST or GraphQL) and store the token as API_TOKEN
+  logout       Forget this shell's token and the cached token of the env
+  openapi      Index an OpenAPI/Swagger JSON spec for completion (sync, list)
+  patch, PATCH PATCH with a JSON body
+  post, POST   POST a JSON body
+  put, PUT     PUT a JSON body
+  run          Run saved requests from a .http file (JetBrains / VS Code REST Client format)
+  schema       Explore a GraphQL service by introspection (names, types, local cache)
+  secret       Store passwords in the system credential store (macOS Keychain)
+  shell-init   Print the shell integration (login, env load/use/clear, completion)
+  time         Request timing breakdown: dns / connect / tls / ttfb / total
+  watch        GET a path every interval until Ctrl+C
 
 Flags:
       --base string         base URL (default $API_BASE_URL)

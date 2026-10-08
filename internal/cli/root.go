@@ -282,11 +282,26 @@ func (a *app) rootCmd() *cobra.Command {
 		return []cobra.Completion{"auto", "always", "never"}, cobra.ShellCompDirectiveNoFileComp
 	})
 
+	// Help lists "get, GET" so the uppercase spelling is discoverable; padding is
+	// cobra's rule (widest sibling, at least 11) applied to the longer names.
+	cobra.AddTemplateFunc("cmdNames", verbNames)
+	cobra.AddTemplateFunc("cmdPad", func(c *cobra.Command) int {
+		pad := 11
+		if p := c.Parent(); p != nil {
+			for _, sib := range p.Commands() {
+				if n := len(verbNames(sib)); n > pad {
+					pad = n
+				}
+			}
+		}
+		return pad
+	})
+	root.SetUsageTemplate(strings.ReplaceAll(root.UsageTemplate(), "{{rpad .Name .NamePadding }}", "{{rpad (cmdNames .) (cmdPad .)}}"))
+
 	// Cobra completes command names but not aliases, so GET/POST/... would never
-	// be offered. Only once an uppercase letter is typed: lowercase TAB keeps
-	// the plain list.
+	// be offered. Not after a lowercase letter, which cannot match them anyway.
 	root.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-		if len(args) > 0 || toComplete == "" || toComplete[0] < 'A' || toComplete[0] > 'Z' {
+		if len(args) > 0 || (toComplete != "" && (toComplete[0] < 'A' || toComplete[0] > 'Z')) {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		var out []cobra.Completion
@@ -336,4 +351,15 @@ func orDefault(v, def string) string {
 		return v
 	}
 	return def
+}
+
+// verbNames is the name shown in help: "get, GET" for a verb command (the
+// uppercase aliases), the plain name for everything else.
+func verbNames(c *cobra.Command) string {
+	for _, al := range c.Aliases {
+		if al == strings.ToUpper(al) {
+			return c.Name() + ", " + al
+		}
+	}
+	return c.Name()
 }
