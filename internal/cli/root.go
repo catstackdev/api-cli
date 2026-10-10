@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"cybercat/api/internal/capture"
 	"cybercat/api/internal/config"
 	"cybercat/api/internal/httpfile"
 	"cybercat/api/internal/secretstore"
@@ -103,7 +104,7 @@ type authState struct {
 // runState is what the requests of one `api run` invocation share: the
 // responses later requests take values from, and the @assert bookkeeping.
 type runState struct {
-	captured     map[string]*captured                   // responses of requests that already ran
+	captured     map[string]*capture.Response           // responses of requests that already ran
 	asserts      map[*httpfile.Request][]compiledAssert // compiled @assert lines of the requests about to run
 	assertTotal  int                                    // assertions evaluated in this run
 	assertFailed int                                    // ... of which failed

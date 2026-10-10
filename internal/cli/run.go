@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cybercat/api/internal/capture"
 	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/httpfile"
 	"cybercat/api/internal/ui"
@@ -358,7 +359,7 @@ func (a *app) renderRequest(job runJob, builtin map[string]string, dry bool) (re
 	r, file, uservars := job.req, job.file, job.uservars
 	var captureErr error
 	lookup := func(name string) (string, bool) {
-		if isCaptureRef(name) {
+		if capture.IsRef(name) {
 			v, err := a.captureLookup(name, dry)
 			if err != nil {
 				captureErr = err
@@ -458,7 +459,7 @@ func (a *app) runDependencies(cmd *cobra.Command, job runJob, o *reqOpts) error 
 	for _, h := range r.Headers {
 		texts = append(texts, h.Name, h.Value)
 	}
-	for _, name := range dependencies(texts...) {
+	for _, name := range capture.Dependencies(texts...) {
 		if _, done := a.run.captured[name]; done {
 			continue
 		}

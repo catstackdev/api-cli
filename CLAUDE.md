@@ -36,7 +36,7 @@ internal/cli/             cobra commands; one file per concern
   secret.go  refs.go
   resolve.go              which server/token/profile a request may use (security core)
   tokencache.go logout.go token cache, 401 recovery, auto login, api logout
-  run.go run_capture.go   .http runner and {{name.response.*}} capture
+  run.go run_capture.go   .http runner; run_capture.go binds `internal/capture` to the app
   run_assert.go             `# @assert` evaluation for `run` (exit 3)
   env_map.go                `env load` URL-variable mapping (gotcha 18)
   pick.go                   fzf selection shared by the pickers
@@ -68,6 +68,8 @@ internal/session/         API_* env + shell quoting (Quote, Export, Unset)
 internal/schema/          GraphQL introspection: signatures, index lines, embedded preview.jq
 internal/jwt/             unverified exp/iat reader (display and cache expiry only)
 internal/assert/          `# @assert` evaluation (see gotcha 41)
+internal/capture/         `{{name.response.*}}` references: parse, dependencies, the key/index body walker
+                          (see gotcha 36; it is app-independent, `run_capture.go` holds the app-bound part)
 internal/curlimport/      curl command -> .http request (tokenise, mask secrets; see gotcha 43)
 internal/openapi/         OpenAPI JSON -> sanitised method+path index (pluggable Decoder; see gotcha 42)
 Makefile                  build / install / check / fuzz / cover / vuln / release / smoke
@@ -306,7 +308,7 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     writes, in directories holding its `preview.jq`.
 
 36. **`run` captures are server data in a possibly-foreign file**
-    (`run_capture.go`): `{{name.response.*}}` values are inserted as literals
+    (`internal/capture` + `run_capture.go`): `{{name.response.*}}` values are inserted as literals
     (`httpfile.Options.IsLiteral`), classed as secrets (foreign host needs
     `--trust-hosts`), resolved by a Go key/index walker (never jq: it can read
     `env`), never stored. Anything new that expands `{{...}}` must go through
