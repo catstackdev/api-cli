@@ -133,6 +133,14 @@ func (a *app) say(msg string) {
 	fmt.Fprintln(a.io.Err, ui.Message(msg, a.colorErr()))
 }
 
+// ask writes a prompt that is answered on the terminal (no newline, no styling).
+func (a *app) ask(prompt string) { fmt.Fprint(a.io.Err, prompt) }
+
+// trace writes one plain line of --verbose output (curl's "> " / "< " lines, the
+// --summary footer). Unlike say it is never styled by a glyph: it is meant to be
+// read as the request itself, and what it prints must already be masked.
+func (a *app) trace(format string, args ...any) { fmt.Fprintf(a.io.Err, format+"\n", args...) }
+
 func (a *app) cfgDuration(v string, def time.Duration) time.Duration {
 	if v == "" {
 		return def
@@ -336,6 +344,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.runCmd(),
 		a.importCmd(),
 		a.historyCmd(),
+		a.requestsCmd(),
 		a.cacheCmd(),
 		a.againCmd(),
 		a.jsonCmd(),

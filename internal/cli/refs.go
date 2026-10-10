@@ -111,9 +111,9 @@ func (a *app) readSecret(label string) (string, error) {
 	if !ok || !term.IsTerminal(int(f.Fd())) {
 		return "", fmt.Errorf("%s: no terminal to ask on: use @keychain:NAME or @env:NAME", label)
 	}
-	fmt.Fprintf(a.io.Err, "%s: ", label)
+	a.ask(label + ": ")
 	b, err := term.ReadPassword(int(f.Fd()))
-	fmt.Fprintln(a.io.Err)
+	a.trace("")
 	if err != nil {
 		return "", err
 	}

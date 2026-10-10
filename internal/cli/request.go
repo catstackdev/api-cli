@@ -214,20 +214,20 @@ func (a *app) send(ctx context.Context, spec httpc.Spec, o *reqOpts) (*httpc.Res
 		a.say("→ " + a.curlLine(spec, nil))
 	}
 	if o.verbose {
-		fmt.Fprintf(a.io.Err, "> %s %s\n", spec.Method, spec.URL)
+		a.trace("> %s %s", spec.Method, spec.URL)
 		for _, h := range spec.Headers {
-			fmt.Fprintf(a.io.Err, "> %s: %s\n", h.Name, maskHeader(h.Name, h.Value))
+			a.trace("> %s: %s", h.Name, maskHeader(h.Name, h.Value))
 		}
-		fmt.Fprintln(a.io.Err, ">")
+		a.trace(">")
 	}
 	resp, err := httpc.Do(ctx, spec, o.retry)
 	if err != nil {
 		return nil, &ExitError{Code: httpc.ExitCode(err), Msg: "✗ " + shortErr(err)}
 	}
 	if o.verbose {
-		fmt.Fprintf(a.io.Err, "< %s %d %s (%s)\n", resp.Proto, resp.Status, resp.StatusText, resp.Duration.Round(time.Millisecond))
+		a.trace("< %s %d %s (%s)", resp.Proto, resp.Status, resp.StatusText, resp.Duration.Round(time.Millisecond))
 		printHeaders(a.io.Err, "< ", resp.Header)
-		fmt.Fprintln(a.io.Err, "<")
+		a.trace("<")
 	}
 	if o.har != "" {
 		entry := har.Build(spec, resp, time.Now().Add(-resp.Duration), har.Options{IncludeSecrets: o.harSecrets})
@@ -240,7 +240,7 @@ func (a *app) send(ctx context.Context, spec httpc.Spec, o *reqOpts) (*httpc.Res
 	if o.summary {
 		footer := fmt.Sprintf("\n─── api ───────────────────────────────\n  status : %d\n  type   : %s\n  time   : %.3fs\n  size   : %d bytes\n  url    : %s\n───────────────────────────────────────",
 			resp.Status, resp.Header.Get("Content-Type"), resp.Duration.Seconds(), len(resp.Body), spec.URL)
-		fmt.Fprintln(a.io.Err, ui.Paint(footer, ui.Dim, a.colorErr()))
+		a.trace("%s", ui.Paint(footer, ui.Dim, a.colorErr()))
 	}
 	return resp, nil
 }

@@ -127,7 +127,7 @@ func hasSecretKey(v any) bool {
 
 // confirm asks a yes/no question on the terminal; the default is no.
 func (a *app) confirm(question string) bool {
-	fmt.Fprintf(a.io.Err, "%s [y/N] ", question)
+	a.ask(question + " [y/N] ")
 	line, _ := bufio.NewReader(a.io.In).ReadString('\n')
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes":

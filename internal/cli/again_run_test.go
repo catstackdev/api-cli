@@ -344,3 +344,56 @@ func TestAgainDefaultReopensTheGeneratedSkeleton(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+// --edit / --default only apply to saved requests, so `again --pick` with either
+// offers just those (a plain GET in the list would end in an error after the
+// choice), and the number it resolves to is still the one `api history` shows.
+func TestAgainPickWithEditOffersOnlySavedRequests(t *testing.T) {
+	s := pickEnv(t)
+	state := t.TempDir()
+	projectWith(t, map[string]string{".env": "A=1\n"})
+	t.Setenv("EDITOR_TOUCH", "1")
+	bin := t.TempDir()
+	_ = os.WriteFile(filepath.Join(bin, "fzf"), []byte("#!/bin/sh\nhead -n 1\n"), 0o755) // the first line offered
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	runShared(t, state, "", "get", "/older")
+	if r := runShared(t, state, "", "again", "--pick", "--edit"); r.code != exitGeneric || !strings.Contains(r.err, "no saved requests") {
+		t.Fatalf("nothing saved yet: %+v", r)
+	}
+	runShared(t, state, "", "gql", "-e", "user", "--item", "query me")
+	runShared(t, state, "", "get", "/ping") // newest: #1 is a plain GET, the saved request is #2
+	n := s.ran("query Me")
+
+	if r := runShared(t, state, "", "again", "--pick"); r.code != 0 || s.ran("query Me") != n {
+		t.Fatalf("without --edit the first line is the GET: %+v", r)
+	}
+	if r := runShared(t, state, "", "again", "--pick", "--edit"); r.code != 0 || s.ran("query Me") != n+1 {
+		t.Fatalf("--edit must offer the saved request, not the GET: %+v", r)
+	}
+	if r := runShared(t, state, "", "again", "--pick", "--default"); r.code != 0 || s.ran("query Me") != n+2 {
+		t.Fatalf("--default too: %+v", r)
+	}
+}
+
+// --runs lists the saved requests only, numbered as in the full list so the
+// number works with `again N`.
+func TestHistoryRunsKeepsTheFullListNumbers(t *testing.T) {
+	pickEnv(t)
+	state := t.TempDir()
+	projectWith(t, map[string]string{".env": "A=1\n"})
+	t.Setenv("EDITOR_TOUCH", "1")
+	runShared(t, state, "", "get", "/older")
+	if r := runShared(t, state, "", "history", "--runs"); !strings.Contains(r.err, "no saved requests") {
+		t.Fatalf("%+v", r)
+	}
+	runShared(t, state, "", "gql", "-e", "user", "--item", "query me")
+	runShared(t, state, "", "get", "/ping")
+	r := runShared(t, state, "", "history", "--runs")
+	if r.code != 0 || strings.Contains(r.out, "/ping") || !strings.Contains(r.out, "user-me") {
+		t.Fatalf("only the saved request: %+v", r)
+	}
+	if f := strings.Fields(strings.Split(strings.TrimSpace(r.out), "\n")[len(strings.Split(strings.TrimSpace(r.out), "\n"))-1]); len(f) == 0 || f[0] != "2" {
+		t.Fatalf("the number is the full list's (2), not 1:\n%s", r.out)
+	}
+}

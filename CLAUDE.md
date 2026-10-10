@@ -43,7 +43,10 @@ internal/cli/             cobra commands; one file per concern
   table.go                  JSON result -> table (`--table`); rendering is in internal/ui
   schema.go schema_sync.go  introspection commands; `schema sync` (cache writer)
   schema_pick.go            fzf browser, editor
-  openapi.go                `openapi sync|list`, per-server index cache, verb path completion
+  openapi.go                `openapi sync|list`, per-server index cache
+  openapi_pick.go           `openapi pick|show`: the editor flow and `savePicked`
+  openapi_complete.go       verb path completion from the cached index
+  requests.go               `requests ls|rm` for `.api/requests/` (names only, never a path)
 internal/ui/              ALL terminal presentation: colour decision, styled
                           messages, status/header lines, pager, tables
 internal/httpc/           Spec -> request / curl args / client / trace
@@ -386,7 +389,8 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
   exception: it lives in `render` because it needs the jq palette).
 - User-facing stderr lines go through `a.say("✗ ...")` / `✓` / `⟳` / `→`, never
   a bare `fmt.Fprintln(a.io.Err, ...)`: that is what styles them and keeps them
-  plain on a non-terminal.
+  plain on a non-terminal. Prompts are `a.ask`, `--verbose` lines `a.trace`;
+  `TestStderrIsWrittenOnlyThroughTheHelpers` fails on any other direct write.
 - Colour is `a.colorOut()` / `a.colorErr()` (flags `-C`/`-M`/`--color` are
   global, `-M` beats `-C`). Body output is buffered and sent through `ui.Page`;
   commands that loop (`watch`) or write files must not page.

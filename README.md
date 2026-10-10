@@ -104,9 +104,9 @@ api diff --envs dev,thien /users/1 .data
 | `diff --envs a,b <path>`                         | same request to two envs, structural JSON diff                  |
 | `run <file\|name> [request]`                     | saved requests from `.http` files                               |
 | `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)                    |
-| `import` (curl on stdin)                         | copied curl -> `.http` request (prints only)                    |
 | `openapi [sync\|list\|pick\|show]`               | index an OpenAPI JSON spec; pick, edit, save, run               |
-| `history [-a]`, `again [N] [--edit]`             | requests to this server; repeat a GET or a saved pick           |
+| `history [-a] [--runs]`, `again [N] [--edit]`    | requests to this server; repeat a GET or a saved pick           |
+| `requests ls`, `requests rm <name>\|--all`       | list or delete the saved picks in `.api/requests/`              |
 | `cache status`, `cache clear [openapi\|schema]`  | size/age of the OpenAPI and schema caches; delete them          |
 | `json k=v k:=raw a.b=nested`                     | build a JSON body (replaces `cjson`)                            |
 | `watch <interval> <path> [.filter]`              | poll until Ctrl+C                                               |
@@ -692,6 +692,12 @@ saving to cancel. What you saved stays, whether or not the run worked, so the
 next `--edit` starts from your last attempt; the version it replaced is kept
 once as `<name>.http.bak`. `api again --default` starts that edit from the
 original skeleton instead (the `.orig` copy), when you want to begin again.
+With `--pick`, `--edit` and `--default` offer only saved requests, and
+`api history --runs` lists just those (with the same numbers as the full list).
+
+`api requests ls` shows the saved requests with their method and URL, and
+`api requests rm <name>... | --all` deletes them with their `.bak` and `.orig`
+(`--all` asks first; `--yes` skips that). Nothing else prunes `.api/requests/`.
 
 A `gql` query containing `{{`, or whose variables look like secrets, is saved
 without them (the runner would expand `{{`).

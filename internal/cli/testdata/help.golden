@@ -25,6 +25,7 @@ Available Commands:
   patch, PATCH PATCH with a JSON body
   post, POST   POST a JSON body
   put, PUT     PUT a JSON body
+  requests     List or delete the saved requests of this project (.api/requests/)
   run          Run saved requests from a .http file (JetBrains / VS Code REST Client format)
   schema       Explore a GraphQL service by introspection (names, types, local cache)
   secret       Store passwords in the system credential store (macOS Keychain)
@@ -854,6 +855,7 @@ Available Commands:
 Flags:
   -a, --all         also show other servers' requests and entries saved without a server
   -n, --limit int   how many entries to show (default 20)
+      --runs        only saved requests (the ones again --edit accepts); numbers stay those of the full list
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1361,6 +1363,67 @@ Flags:
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -v, --verbose                    print request and response headers to stderr
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api requests =====
+The requests `api openapi pick` and `api gql --pick` keep under .api/requests/, with the
+method and URL of each. `rm` deletes a saved request together with its .bak (your
+previous edit) and .orig (the generated skeleton). History entries that point at
+a deleted request just report that it is gone.
+
+Usage:
+  api requests [command]
+
+Available Commands:
+  ls          List the saved requests with their method and URL
+  rm          Delete saved requests (and their .bak / .orig)
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+Use "api requests [command] --help" for more information about a command.
+
+===== api requests ls =====
+List the saved requests with their method and URL
+
+Usage:
+  api requests ls [flags]
+
+Global Flags:
+      --base string         base URL (default $API_BASE_URL)
+      --color string        colour output: auto, always or never (env API_COLOR, NO_COLOR, JQ_COLORS) (default "auto")
+  -C, --color-output        always colour the output (jq -C)
+      --debug               print the equivalent curl command to stderr (or set API_DEBUG=1)
+      --env string          use the [env.<name>] profile from config (see: api config show)
+  -M, --monochrome-output   never colour the output (jq -M)
+      --no-pager            never page long output (env API_PAGER sets the pager, empty disables)
+      --token string        bearer token (default $API_TOKEN)
+
+===== api requests rm =====
+Delete saved requests (and their .bak / .orig)
+
+Usage:
+  api requests rm <name>... | --all [flags]
+
+Flags:
+      --all   delete every saved request (asks first)
+      --yes   with --all: do not ask
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)

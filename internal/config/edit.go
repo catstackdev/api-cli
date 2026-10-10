@@ -1,13 +1,14 @@
 package config
 
 import (
-	"cybercat/api/internal/secretref"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"cybercat/api/internal/secretref"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -373,7 +374,7 @@ func Render(scope Scope, baseURL, graphqlURL string) string {
 # The password is never written here: "@keychain:NAME" refers to a secret you
 # store once, BOUND to this env's server so that no config file, alias or pasted
 # command can send it anywhere else:
-#     api secret set upscale-local --for http://localhost:3000
+#     api secret set project-local --for http://localhost:3000
 # A project login may only use bound Keychain secrets (not @env: references).
 # No url is needed for the login: after 'api env load local' the server is the
 # one your .env gave the shell, and the bound secret makes that safe.
@@ -381,7 +382,7 @@ func Render(scope Scope, baseURL, graphqlURL string) string {
 # gql = "mutation($input: LoginInput!) { login(input: $input) { accessToken } }"   # or: path = "/auth/login" (REST)
 # endpoint = "v2/auth"                    # GraphQL: like api gql -e
 # token_path = ".data.login.accessToken"  # where the token is in the response
-# vars = { "input.username" = "me@x.com", "input.password" = "@keychain:upscale-local" }
+# vars = { "input.username" = "me@x.com", "input.password" = "@keychain:project-local" }
 
 # ── aliases for this project: api me ───────────────────────────────────────
 # [alias]
@@ -411,7 +412,7 @@ const globalTemplate = `# api global config (~/.config/api/config.toml): what is
 
 # ── named environments (uncomment the whole block): api --env dev, api env use dev
 # Define the envs you log in to from several projects here, with unique names
-# (upscale-dev, upscale-thien): a project file cannot change their urls without
+# (project-dev, project-local): a project file cannot change their urls without
 # losing the token.
 # [env.dev]
 # url = "https://api.dev.example.com"
@@ -432,7 +433,7 @@ const globalTemplate = `# api global config (~/.config/api/config.toml): what is
 # gql = "mutation($input: LoginInput!) { login(input: $input) { accessToken } }"   # or path = "/auth/login" for REST
 # endpoint = "v2/auth"                   # GraphQL: like api gql -e
 # token_path = ".data.login.accessToken" # where the token is in the response
-# vars = { "input.username" = "me@x.com", "input.password" = "@keychain:upscale-dev" }
+# vars = { "input.username" = "me@x.com", "input.password" = "@keychain:project-dev" }
 
 # ── aliases: api me ────────────────────────────────────────────────────────
 # [alias]

@@ -14,7 +14,7 @@ import (
 
 func (a *app) historyCmd() *cobra.Command {
 	var limit int
-	var all bool
+	var all, runs bool
 	cmd := &cobra.Command{
 		Use:   "history",
 		Short: "List recent requests to the current server (method, path, filter: never bodies or tokens)",
@@ -30,13 +30,24 @@ the ones ` + "`api again N`" + ` uses; a long path continues on the next line.`,
 				a.say("  (" + a.emptyHistoryMessage(all) + ")")
 				return
 			}
+			// numbered from the whole list, so a number is the same with or without --runs
+			nums := make([]int, len(entries))
+			for i := range entries {
+				nums[i] = i + 1
+			}
+			if runs {
+				if entries, nums = savedRuns(entries); len(entries) == 0 {
+					a.say("  (no saved requests: api openapi pick and api gql --pick make them)")
+					return
+				}
+			}
 			if limit > 0 && len(entries) > limit {
-				entries = entries[:limit]
+				entries, nums = entries[:limit], nums[:limit]
 			}
 			header := []string{"#", "METHOD", "PATH", "FILTER"}
 			rows := make([][]string, len(entries))
 			for i, e := range entries {
-				rows[i] = []string{strconv.Itoa(i + 1), e.Method, e.Path, e.Filter}
+				rows[i] = []string{strconv.Itoa(nums[i]), e.Method, e.Path, e.Filter}
 				if all {
 					rows[i] = append(rows[i], orDefault(e.Origin, "(no server)"))
 				}
@@ -51,6 +62,7 @@ the ones ` + "`api again N`" + ` uses; a long path continues on the next line.`,
 	}
 	cmd.Flags().IntVarP(&limit, "limit", "n", 20, "how many entries to show")
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "also show other servers' requests and entries saved without a server")
+	cmd.Flags().BoolVar(&runs, "runs", false, "only saved requests (the ones again --edit accepts); numbers stay those of the full list")
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "clear",
@@ -107,11 +119,22 @@ A .filter argument replaces the stored one. All the usual flags (-i, -c,
 				return &ExitError{Code: exitGeneric, Msg: "✗ " + a.emptyHistoryMessage(all)}
 			}
 			if pick {
-				n, err := a.pickHistory(entries)
+				// --edit / --default only apply to saved requests: offer just those,
+				// keeping the numbers `api history` shows
+				choices, nums := entries, []int(nil)
+				if edit || fresh {
+					if choices, nums = savedRuns(entries); len(choices) == 0 {
+						return &ExitError{Code: exitGeneric, Msg: "✗ no saved requests in the history to edit (api openapi pick and api gql --pick make them)"}
+					}
+				}
+				n, err := a.pickHistory(choices)
 				if err != nil {
 					return err
 				}
 				idx = n
+				if nums != nil {
+					idx = nums[n-1]
+				}
 			}
 			if idx > len(entries) {
 				return &ExitError{Code: exitGeneric, Msg: fmt.Sprintf("✗ only %d entries in the history", len(entries))}
@@ -167,6 +190,18 @@ A .filter argument replaces the stored one. All the usual flags (-i, -c,
 	cmd.Flags().BoolVar(&yes, "yes", false, "saved request: do not ask before running one that changes data")
 	cmd.Flags().BoolVar(&all, "all", false, "number the entries of every server, as `api history -a` does")
 	return cmd
+}
+
+// savedRuns are the entries that point at a saved request, with the position
+// each has in entries: the number `api history` shows and `api again N` takes.
+func savedRuns(entries []history.Entry) (runs []history.Entry, nums []int) {
+	for i, e := range entries {
+		if e.Method == history.RunMethod {
+			runs = append(runs, e)
+			nums = append(nums, i+1)
+		}
+	}
+	return runs, nums
 }
 
 // pickHistory runs fzf over the entries and returns the chosen 1-based index.
