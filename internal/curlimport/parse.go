@@ -43,102 +43,120 @@ func Parse(input string) (Request, error) {
 	}
 	var r Request
 	var data []string
-	for i := 0; i < len(words); i++ {
-		w := words[i]
-		value := func() (string, error) {
-			if i+1 >= len(words) {
-				return "", fmt.Errorf("%s needs a value", w)
-			}
-			i++
-			return words[i], nil
-		}
-		switch w {
-		case "-X", "--request":
-			v, err := value()
-			if err != nil {
-				return r, err
-			}
-			if !validMethod(v) {
-				return r, fmt.Errorf("unsupported method %q", v)
-			}
-			r.Method = strings.ToUpper(v)
-		case "-H", "--header":
-			v, err := value()
-			if err != nil {
-				return r, err
-			}
-			name, val, ok := strings.Cut(v, ":")
-			name, val = strings.TrimSpace(name), strings.TrimSpace(val)
-			if !ok || name == "" {
-				r.Ignored = append(r.Ignored, "header without a name")
-				continue
-			}
-			r.Headers = append(r.Headers, Header{name, val})
-		case "-d", "--data", "--data-raw", "--data-binary", "--data-ascii":
-			v, err := value()
-			if err != nil {
-				return r, err
-			}
-			if strings.HasPrefix(v, "@") && w != "--data-raw" {
-				return r, fmt.Errorf("%s @file is not supported (the file is not read): paste the body instead", w)
-			}
-			data = append(data, v)
-		case "--json":
-			v, err := value()
-			if err != nil {
-				return r, err
-			}
-			data = append(data, v)
-			r.Headers = append(r.Headers, Header{"Content-Type", "application/json"}, Header{"Accept", "application/json"})
-		case "-u", "--user":
-			v, err := value()
-			if err != nil {
-				return r, err
-			}
-			r.BasicUser = v
-		case "-b", "--cookie":
-			v, err := value()
-			if err != nil {
-				return r, err
-			}
-			r.Headers = append(r.Headers, Header{"Cookie", v})
-		case "--url":
-			v, err := value()
-			if err != nil {
-				return r, err
-			}
-			if err := r.setURL(v); err != nil {
-				return r, err
-			}
-		case "-A", "--user-agent", "-e", "--referer":
-			if _, err := value(); err != nil {
-				return r, err
-			}
-			r.Ignored = append(r.Ignored, w)
-		case "--compressed", "-s", "--silent", "-S", "--show-error", "-L", "--location",
-			"-i", "--include", "-v", "--verbose", "-g", "--globoff", "--http1.1", "--http2",
-			"-f", "--fail", "-G":
-			r.Ignored = append(r.Ignored, w)
-		case "-k", "--insecure":
-			r.Ignored = append(r.Ignored, w+" (TLS verification stays on)")
-		case "-F", "--form", "-T", "--upload-file", "--data-urlencode", "-o", "--output", "-O", "-K", "--config", "--proxy", "-x":
-			return r, fmt.Errorf("%s is not supported", w)
-		default:
-			switch {
-			case strings.HasPrefix(w, "-") && len(w) > 1:
-				if !isBoolBundle(w) {
-					return r, fmt.Errorf("unsupported flag %s", w)
-				}
-				r.Ignored = append(r.Ignored, w)
-			default:
-				if err := r.setURL(w); err != nil {
-					return r, err
-				}
-			}
+	args := &flagArgs{words: words}
+	for ; args.i < len(words); args.i++ {
+		if err := r.applyFlag(words[args.i], args, &data); err != nil {
+			return r, err
 		}
 	}
+	return r, r.finish(data)
+}
+
+// flagArgs walks the words of the command, so a flag can take the next one as its value.
+type flagArgs struct {
+	words []string
+	i     int // the word being handled
+}
+
+// value consumes the word after flag.
+func (f *flagArgs) value(flag string) (string, error) {
+	if f.i+1 >= len(f.words) {
+		return "", fmt.Errorf("%s needs a value", flag)
+	}
+	f.i++
+	return f.words[f.i], nil
+}
+
+// applyFlag understands one word of the command: a flag of the small supported
+// subset, or the URL. Body fragments are collected in data.
+func (r *Request) applyFlag(w string, args *flagArgs, data *[]string) error {
+	switch w {
+	case "-X", "--request":
+		v, err := args.value(w)
+		if err != nil {
+			return err
+		}
+		if !validMethod(v) {
+			return fmt.Errorf("unsupported method %q", v)
+		}
+		r.Method = strings.ToUpper(v)
+	case "-H", "--header":
+		v, err := args.value(w)
+		if err != nil {
+			return err
+		}
+		name, val, ok := strings.Cut(v, ":")
+		name, val = strings.TrimSpace(name), strings.TrimSpace(val)
+		if !ok || name == "" {
+			r.Ignored = append(r.Ignored, "header without a name")
+			return nil
+		}
+		r.Headers = append(r.Headers, Header{name, val})
+	case "-d", "--data", "--data-raw", "--data-binary", "--data-ascii":
+		v, err := args.value(w)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(v, "@") && w != "--data-raw" {
+			return fmt.Errorf("%s @file is not supported (the file is not read): paste the body instead", w)
+		}
+		*data = append(*data, v)
+	case "--json":
+		v, err := args.value(w)
+		if err != nil {
+			return err
+		}
+		*data = append(*data, v)
+		r.Headers = append(r.Headers, Header{"Content-Type", "application/json"}, Header{"Accept", "application/json"})
+	case "-u", "--user":
+		v, err := args.value(w)
+		if err != nil {
+			return err
+		}
+		r.BasicUser = v
+	case "-b", "--cookie":
+		v, err := args.value(w)
+		if err != nil {
+			return err
+		}
+		r.Headers = append(r.Headers, Header{"Cookie", v})
+	case "--url":
+		v, err := args.value(w)
+		if err != nil {
+			return err
+		}
+		return r.setURL(v)
+	case "-A", "--user-agent", "-e", "--referer":
+		if _, err := args.value(w); err != nil {
+			return err
+		}
+		r.Ignored = append(r.Ignored, w)
+	case "--compressed", "-s", "--silent", "-S", "--show-error", "-L", "--location",
+		"-i", "--include", "-v", "--verbose", "-g", "--globoff", "--http1.1", "--http2",
+		"-f", "--fail", "-G":
+		r.Ignored = append(r.Ignored, w)
+	case "-k", "--insecure":
+		r.Ignored = append(r.Ignored, w+" (TLS verification stays on)")
+	case "-F", "--form", "-T", "--upload-file", "--data-urlencode", "-o", "--output", "-O", "-K", "--config", "--proxy", "-x":
+		return fmt.Errorf("%s is not supported", w)
+	default:
+		if strings.HasPrefix(w, "-") && len(w) > 1 {
+			if !isBoolBundle(w) {
+				return fmt.Errorf("unsupported flag %s", w)
+			}
+			r.Ignored = append(r.Ignored, w)
+			return nil
+		}
+		return r.setURL(w)
+	}
+	return nil
+}
+
+// finish settles what depends on the whole command: the body, the method and
+// the checks that keep pasted text from changing the file's structure.
+func (r *Request) finish(data []string) error {
 	if r.URL == "" {
-		return r, fmt.Errorf("no URL in the command")
+		return fmt.Errorf("no URL in the command")
 	}
 	if len(data) > 0 {
 		r.Body, r.HasBody = strings.Join(data, "&"), true
@@ -151,13 +169,10 @@ func Parse(input string) (Request, error) {
 	}
 	for _, h := range r.Headers {
 		if err := checkText("header", h.Name+h.Value); err != nil {
-			return r, err
+			return err
 		}
 	}
-	if err := checkText("URL", r.URL); err != nil {
-		return r, err
-	}
-	return r, nil
+	return checkText("URL", r.URL)
 }
 
 func (r *Request) setURL(u string) error {
