@@ -90,15 +90,24 @@ type app struct {
 	forceColor, noColor bool   // -C / -M
 	noPager             bool
 
+	auth authState // 401 recovery and automatic login
+	run  runState  // `api run` and the commands that run a saved request
+}
+
+// authState is what one invocation remembers about recovering from a 401.
+type authState struct {
 	strictRefs   bool // automatic login: only @keychain: references
 	reloginTried bool // at most one automatic login per invocation
+}
 
-	captured map[string]*captured // `api run`: responses of requests that already ran
-
-	asserts      map[*httpfile.Request][]compiledAssert // `api run`: compiled @assert lines of the requests about to run
+// runState is what the requests of one `api run` invocation share: the
+// responses later requests take values from, and the @assert bookkeeping.
+type runState struct {
+	captured     map[string]*captured                   // responses of requests that already ran
+	asserts      map[*httpfile.Request][]compiledAssert // compiled @assert lines of the requests about to run
 	assertTotal  int                                    // assertions evaluated in this run
 	assertFailed int                                    // ... of which failed
-	running      map[string]bool                        // `api run`: requests being run for their values (cycle guard)
+	running      map[string]bool                        // requests being run for their values (cycle guard)
 }
 
 // mode is the colour preference: -M beats -C beats --color / API_COLOR.

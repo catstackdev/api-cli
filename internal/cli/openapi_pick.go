@@ -276,7 +276,7 @@ func (a *app) openapiEditAndRun(cmd *cobra.Command, op openapi.Operation, pf pic
 		_ = os.WriteFile(saved+".orig", []byte(strings.TrimRight(stripPickMarkers(pickFile(op, slug)), "\n")+"\n"), 0o600)
 		a.say(fmt.Sprintf("✓ saved %s/%s (api run %s)", requestsDir, filepath.Base(saved), strings.TrimSuffix(filepath.Base(saved), ".http")))
 	}
-	if a.asserts, err = compileAsserts(path, []*httpfile.Request{req}); err != nil {
+	if a.run.asserts, err = compileAsserts(path, []*httpfile.Request{req}); err != nil {
 		return err
 	}
 	a.say("→ " + strings.ToUpper(req.Method) + " " + req.URL)

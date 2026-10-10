@@ -41,7 +41,7 @@ func (a *app) resolverFor(source refSource, dests ...string) jsonbody.Resolver {
 // never @env: (it could read any variable of yours).
 func (a *app) resolveRefFor(v string, source refSource, dests []string) (string, error) {
 	kind, arg := secretref.Parse(v)
-	if a.strictRefs && (kind == secretref.Env || kind == secretref.Prompt) {
+	if a.auth.strictRefs && (kind == secretref.Env || kind == secretref.Prompt) {
 		return "", fmt.Errorf("automatic login only uses @keychain: references (this login uses %s)", v)
 	}
 	switch kind {

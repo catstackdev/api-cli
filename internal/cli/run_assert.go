@@ -45,13 +45,13 @@ func (a *app) checkAsserts(r *httpfile.Request, resp *httpc.Response, list []com
 	failed := 0
 	for _, as := range list {
 		res := as.Eval(env)
-		a.assertTotal++
+		a.run.assertTotal++
 		if res.Pass {
 			a.say("✓ " + as.Expr)
 			continue
 		}
 		failed++
-		a.assertFailed++
+		a.run.assertFailed++
 		a.say(fmt.Sprintf("✗ %s — %s (line %d)", as.Expr, res.Reason, as.line))
 	}
 	if failed == 0 {

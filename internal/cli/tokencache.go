@@ -136,10 +136,10 @@ func (a *app) retryOn401(ctx context.Context, spec httpc.Spec, o *reqOpts) (*htt
 		}
 	}
 	// 2. log in again from the configured login
-	if !a.autoLoginOn() || a.reloginTried {
+	if !a.autoLoginOn() || a.auth.reloginTried {
 		return nil, false
 	}
-	a.reloginTried = true
+	a.auth.reloginTried = true
 	tok, err := a.autoLogin(ctx, o)
 	if err != nil {
 		a.say("⚠ automatic login failed: " + err.Error())
@@ -166,8 +166,8 @@ func (a *app) resend(ctx context.Context, spec httpc.Spec, o *reqOpts, token str
 func (a *app) autoLogin(ctx context.Context, o *reqOpts) (string, error) {
 	lo := *o
 	lo.noAuth, lo.dry, lo.har, lo.verbose, lo.summary = true, false, "", false, false
-	a.strictRefs = true
-	defer func() { a.strictRefs = false }()
+	a.auth.strictRefs = true
+	defer func() { a.auth.strictRefs = false }()
 	spec, tokenPath, err := a.loginFromConfig(&lo, nil, false)
 	if err != nil {
 		return "", err

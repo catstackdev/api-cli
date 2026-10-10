@@ -178,7 +178,7 @@ func (a *app) runFile(cmd *cobra.Command, args []string, o *reqOpts, rf *runFlag
 	if err != nil {
 		return err
 	}
-	if a.asserts, err = compileAsserts(path, reqs); err != nil {
+	if a.run.asserts, err = compileAsserts(path, reqs); err != nil {
 		return err
 	}
 
@@ -198,8 +198,8 @@ func (a *app) runFile(cmd *cobra.Command, args []string, o *reqOpts, rf *runFlag
 			}
 		}
 	}
-	if rf.all && a.assertTotal > 0 {
-		a.say(fmt.Sprintf("%d assertion(s): %d passed, %d failed", a.assertTotal, a.assertTotal-a.assertFailed, a.assertFailed))
+	if rf.all && a.run.assertTotal > 0 {
+		a.say(fmt.Sprintf("%d assertion(s): %d passed, %d failed", a.run.assertTotal, a.run.assertTotal-a.run.assertFailed, a.run.assertFailed))
 	}
 	return firstErr
 }
@@ -317,7 +317,7 @@ func (a *app) runRequest(cmd *cobra.Command, job runJob, o *reqOpts) error {
 		filter = "."
 	}
 	if opts.dry {
-		if n := len(a.asserts[r]); n > 0 {
+		if n := len(a.run.asserts[r]); n > 0 {
 			a.say(fmt.Sprintf("→ %d assertion(s) not evaluated with --dry", n))
 		}
 		return a.dispatch(cmd.Context(), spec, &opts, filter, "", nil)
@@ -333,7 +333,7 @@ func (a *app) runRequest(cmd *cobra.Command, job runJob, o *reqOpts) error {
 		}
 		return nil
 	}
-	if list := a.asserts[r]; len(list) > 0 {
+	if list := a.run.asserts[r]; len(list) > 0 {
 		return a.finishAsserted(r, resp, &opts, filter, list)
 	}
 	return a.finish(resp, &opts, filter, nil)
@@ -459,10 +459,10 @@ func (a *app) runDependencies(cmd *cobra.Command, job runJob, o *reqOpts) error 
 		texts = append(texts, h.Name, h.Value)
 	}
 	for _, name := range dependencies(texts...) {
-		if _, done := a.captured[name]; done {
+		if _, done := a.run.captured[name]; done {
 			continue
 		}
-		if name == r.Name || a.running[name] {
+		if name == r.Name || a.run.running[name] {
 			return fmt.Errorf("request %q takes a value from %q, which depends on it (a cycle)", r.Name, name)
 		}
 		var dep *httpfile.Request
@@ -475,13 +475,13 @@ func (a *app) runDependencies(cmd *cobra.Command, job runJob, o *reqOpts) error 
 		if dep == nil {
 			return fmt.Errorf("request %q uses {{%s.response...}} but this file has no request named %q (name one with `# @name %s`)", r.Name, name, name, name)
 		}
-		if a.running == nil {
-			a.running = map[string]bool{}
+		if a.run.running == nil {
+			a.run.running = map[string]bool{}
 		}
-		a.running[r.Name] = true
+		a.run.running[r.Name] = true
 		a.say(fmt.Sprintf("  ↳ running %q first: %q uses its response", name, r.Name))
 		err := a.runRequest(cmd, runJob{path: job.path, file: file, req: dep, uservars: job.uservars, silent: true}, o)
-		delete(a.running, r.Name)
+		delete(a.run.running, r.Name)
 		if err != nil {
 			return err
 		}

@@ -136,7 +136,7 @@ func (a *app) captureLookup(expr string, dry bool) (string, error) {
 	if dry {
 		return "<" + expr + ">", nil
 	}
-	c, ok := a.captured[m[1]]
+	c, ok := a.run.captured[m[1]]
 	if !ok {
 		return "", fmt.Errorf("{{%s}}: request %q has not run yet", expr, m[1])
 	}
@@ -151,10 +151,10 @@ func (a *app) remember(name string, resp *httpc.Response) {
 	if name == "" {
 		return
 	}
-	if a.captured == nil {
-		a.captured = map[string]*captured{}
+	if a.run.captured == nil {
+		a.run.captured = map[string]*captured{}
 	}
-	a.captured[name] = &captured{status: resp.Status, header: resp.Header, body: resp.Body}
+	a.run.captured[name] = &captured{status: resp.Status, header: resp.Header, body: resp.Body}
 }
 
 // interpolateOptions wires captured values into httpfile: data, secret.

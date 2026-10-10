@@ -135,7 +135,7 @@ func (a *app) againRun(cmd *cobra.Command, e history.Entry, ao againOpts, o *req
 			return &ExitError{Code: exitGeneric}
 		}
 	}
-	if a.asserts, err = compileAsserts(path, []*httpfile.Request{req}); err != nil {
+	if a.run.asserts, err = compileAsserts(path, []*httpfile.Request{req}); err != nil {
 		return err
 	}
 	a.say("→ " + strings.ToUpper(req.Method) + " " + req.URL + "  (" + requestsDir + "/" + filepath.Base(path) + ")")
