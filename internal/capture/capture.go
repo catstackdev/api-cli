@@ -1,4 +1,4 @@
-// Package capture resolves the {{name.response.*}} references of `api run`: a
+// Package capture is security-relevant (see SECURITY.md before changing it). It resolves the {{name.response.*}} references of `api run`: a
 // later request takes a value from the response of an earlier one, the way REST
 // Client / httpyac files do. The response is SERVER data in a FILE that may come
 // from a repo, so:

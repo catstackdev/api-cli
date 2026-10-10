@@ -387,3 +387,34 @@ func TestRegistryIsConsistent(t *testing.T) {
 		}
 	}
 }
+
+// Lint explains what a project file ignores with its own hand-written list. A
+// global-only key it forgot would be dropped without a word, so every one must
+// produce a warning that names it.
+func TestLintExplainsEveryGlobalOnlyKey(t *testing.T) {
+	for _, k := range keys {
+		if k.scope != globalFile {
+			continue
+		}
+		t.Run(k.pattern, func(t *testing.T) {
+			var c Config
+			sample := map[string]string{
+				"defaults.token_cache": "true", "defaults.auto_login": "true", "defaults.editor": "nvim",
+				"env.<name>.token_env": "API_TOKEN_DEV",
+			}[k.pattern]
+			if sample == "" {
+				t.Fatalf("add a sample value for %s to this test", k.pattern)
+			}
+			if err := Set(&c, strings.Replace(k.pattern, "<name>", "dev", 1), sample); err != nil {
+				t.Fatal(err)
+			}
+			name := k.pattern[strings.LastIndex(k.pattern, ".")+1:]
+			for _, is := range Lint(c, true, nil) {
+				if strings.Contains(is.Message, name) {
+					return
+				}
+			}
+			t.Fatalf("Lint says nothing about %s in a project file", k.pattern)
+		})
+	}
+}

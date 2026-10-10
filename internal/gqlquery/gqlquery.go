@@ -1,4 +1,5 @@
-// Package gqlquery holds the decisions made on GraphQL text: does it change
+// Package gqlquery is security-relevant: IsReadOnly gates `api diff` and the
+// confirmation before a picked mutation runs (see SECURITY.md). It holds the decisions made on GraphQL text: does it change
 // data, is it a subscription, where does a request for it go. They are pure
 // functions of strings, so every command that sends or saves a query asks the
 // same place.

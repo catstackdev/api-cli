@@ -19,7 +19,8 @@ just that one line.
 `ugql-browse` stay shell and read the `~/.cache/ugql` files `api schema sync`
 writes. Security rules are in `SECURITY.md` (each has a test that fails when the
 rule is reverted); read it before touching `resolve.go`, `tokencache.go`,
-`refs.go`, `run*.go` or `schema*.go`.
+`refs.go`, `run*.go`, `schema*.go`, `internal/capture`, `internal/gqlquery` or
+`internal/config/keys.go` (the key scopes).
 
 ## Layout
 

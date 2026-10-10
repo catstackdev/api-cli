@@ -9,6 +9,9 @@ import (
 	"cybercat/api/internal/secretref"
 )
 
+// Security-relevant: the fileScope of each key decides what a cloned repo's project
+// file may set (see SECURITY.md and gotchas 10, 33 and 46).
+//
 // The settable keys, declared once. Set, Get, the in-place text edit (SetInFile)
 // and SettableKeys all read this table, so a key cannot be settable but not
 // readable, or readable but not editable in place.
@@ -165,10 +168,6 @@ func (s entrySlot) text() (string, bool) { v, ok := (*s.m)[s.k]; return v, ok }
 func (s entrySlot) literal() string      { return tomlString((*s.m)[s.k]) }
 
 // --- declaring keys -----------------------------------------------------------
-
-func lastSegment(pattern string) string {
-	return pattern[strings.LastIndex(pattern, ".")+1:]
-}
 
 func fixed(s string) func([]string) string { return func([]string) string { return s } }
 
