@@ -60,9 +60,10 @@ func bindSubscribeFlags(cmd *cobra.Command, so *subOpts) {
 // gqlSubscribe runs a subscription: the request is built like every other one
 // (newSpec: URL, headers, and the token only if the destination rules allow it),
 // then the same URL, headers and token are used for the WebSocket upgrade.
-func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, so *subOpts, endpoint, payload, filter string, pass []string) error {
+func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, so *subOpts, call gqlCall) error {
+	endpoint, payload, filter := call.endpoint, call.payload, call.filter
 	switch {
-	case len(pass) > 0:
+	case len(call.pass) > 0:
 		return fmt.Errorf("a subscription runs over a WebSocket: curl arguments (--) do not apply")
 	case o.output != "" || o.har != "":
 		return fmt.Errorf("a subscription is a stream: -o and --har do not apply")

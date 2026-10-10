@@ -106,6 +106,15 @@ func (a *app) gqlPayload(args, vars []string, resolve jsonbody.Resolver) (payloa
 	return payload, filter, err
 }
 
+// gqlCall is what `api gql` was asked to send, shared by the one-shot request,
+// the subscription and the interactive picker.
+type gqlCall struct {
+	endpoint string   // -e: the service under the GraphQL URL
+	payload  string   // the JSON request body (empty for the picker, which builds its own)
+	filter   string   // jq filter for the result
+	pass     []string // curl arguments after --
+}
+
 // gqlBody is the JSON request body of a GraphQL call.
 func gqlBody(query, varsJSON string) (string, error) {
 	b, err := json.Marshal(struct {
@@ -122,8 +131,7 @@ func (a *app) gqlCmd() *cobra.Command {
 		vars     []string
 		strict   bool
 		pick     bool
-		yes      bool
-		noSave   bool
+		pf       pickFlags
 		item     string
 		so       subOpts
 	)
@@ -147,7 +155,7 @@ func (a *app) gqlCmd() *cobra.Command {
 				if len(before) == 1 && isFilter(before[0]) {
 					filter = before[0]
 				}
-				return a.gqlInteractive(cmd.Context(), o, endpoint, filter, yes, item, noSave)
+				return a.gqlInteractive(cmd.Context(), o, pf, gqlCall{endpoint: endpoint, filter: filter}, item)
 			}
 
 			resolver := a.resolverFor(srcUser, a.destOrigin(a.envName, gqlTarget(a.session().GraphQLURL, endpoint), o))
@@ -161,7 +169,7 @@ func (a *app) gqlCmd() *cobra.Command {
 
 			if q := queryOf(payload); isSubscription(q) {
 				so.strict = strict
-				return a.gqlSubscribe(cmd.Context(), cmd, o, &so, endpoint, payload, filter, pass)
+				return a.gqlSubscribe(cmd.Context(), cmd, o, &so, gqlCall{endpoint: endpoint, payload: payload, filter: filter, pass: pass})
 			}
 
 			target := gqlTarget(a.session().GraphQLURL, endpoint)
@@ -192,8 +200,8 @@ func (a *app) gqlCmd() *cobra.Command {
 	f.StringVarP(&endpoint, "endpoint", "e", "", "path appended to the GraphQL base, or a full URL")
 	f.StringArrayVarP(&vars, "var", "V", nil, "variable key=value or key:=json (repeatable)")
 	f.BoolVar(&pick, "pick", false, "choose the endpoint and the query with fzf, edit the generated query, then run it (default with no query on a terminal)")
-	f.BoolVar(&yes, "yes", false, "with --pick: do not ask before running a mutation")
-	f.BoolVar(&noSave, "no-save", false, "with --pick: do not keep the request under "+requestsDir+"/ (so `api again` cannot repeat it)")
+	f.BoolVar(&pf.yes, "yes", false, "with --pick: do not ask before running a mutation")
+	f.BoolVar(&pf.noSave, "no-save", false, "with --pick: do not keep the request under "+requestsDir+"/ (so `api again` cannot repeat it)")
 	f.StringVar(&item, "item", "", `implies --pick: use this "<query|mutation> <name>" instead of choosing it with fzf (for tv, editors)`)
 	f.BoolVar(&strict, "strict", false, "exit 4 when the response has GraphQL errors")
 	_ = cmd.RegisterFlagCompletionFunc("endpoint", a.endpointCompletion)

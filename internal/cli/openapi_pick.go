@@ -280,7 +280,7 @@ func (a *app) openapiEditAndRun(cmd *cobra.Command, op openapi.Operation, pf pic
 		return err
 	}
 	a.say("→ " + strings.ToUpper(req.Method) + " " + req.URL)
-	err = a.runRequest(cmd, path, file, req, map[string]string{}, o, "", o.trustHosts, false)
+	err = a.runRequest(cmd, runJob{path: path, file: file, req: req}, o)
 	if kept {
 		// remembered even when it failed (a 400 on a body you still have to fix):
 		// `api again` retries it, `api again --edit` fixes it first

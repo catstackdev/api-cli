@@ -72,10 +72,19 @@ func requestIsReadOnly(r *httpfile.Request) bool {
 	return json.Unmarshal([]byte(r.Body), &b) == nil && b.Query != nil && isReadOnlyQuery(*b.Query)
 }
 
+// againOpts are the options of `api again` that only a saved request uses.
+type againOpts struct {
+	filter string
+	edit   bool // open the saved request in the editor first
+	yes    bool // do not ask before sending a request that changes data
+	fresh  bool // start the editor from the skeleton the pick generated (implies edit)
+}
+
 // againRun repeats a RUN entry. Where it can run is checked first (the project
 // and the server it was saved for), then what is in the file NOW decides
 // whether to ask, as for the pick that created it.
-func (a *app) againRun(cmd *cobra.Command, e history.Entry, filter string, o *reqOpts, edit, yes, fresh bool) error {
+func (a *app) againRun(cmd *cobra.Command, e history.Entry, ao againOpts, o *reqOpts) error {
+	edit := ao.edit
 	root := findRoot()
 	switch cur := a.currentOrigin(); {
 	case e.Root != root:
@@ -92,7 +101,7 @@ func (a *app) againRun(cmd *cobra.Command, e history.Entry, filter string, o *re
 		return err
 	}
 	text := string(data)
-	if fresh {
+	if ao.fresh {
 		// start the editor from the skeleton the pick generated, not from your last version
 		orig, err := os.ReadFile(path + ".orig")
 		if err != nil {
@@ -120,7 +129,7 @@ func (a *app) againRun(cmd *cobra.Command, e history.Entry, filter string, o *re
 		return &ExitError{Code: exitUsage, Msg: fmt.Sprintf("✗ %s must hold exactly one request, found %d (use `api run %s`)", filepath.Base(path), len(file.Requests), e.Path)}
 	}
 	req := &file.Requests[0]
-	if !requestIsReadOnly(req) && !yes && !o.dry {
+	if !requestIsReadOnly(req) && !ao.yes && !o.dry {
 		if !a.confirm(fmt.Sprintf("✱ %s %s changes data on %s: run it?", strings.ToUpper(req.Method), req.URL, orUnset(a.session().BaseURL))) {
 			a.say("  (not run)")
 			return &ExitError{Code: exitGeneric}
@@ -130,7 +139,7 @@ func (a *app) againRun(cmd *cobra.Command, e history.Entry, filter string, o *re
 		return err
 	}
 	a.say("→ " + strings.ToUpper(req.Method) + " " + req.URL + "  (" + requestsDir + "/" + filepath.Base(path) + ")")
-	runErr := a.runRequest(cmd, path, file, req, map[string]string{}, o, filter, o.trustHosts, false)
+	runErr := a.runRequest(cmd, runJob{path: path, file: file, req: req, filter: ao.filter}, o)
 	if o.dry {
 		return runErr
 	}

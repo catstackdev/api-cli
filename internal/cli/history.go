@@ -144,7 +144,7 @@ A .filter argument replaces the stored one. All the usual flags (-i, -c,
 				if filter == "" {
 					filter = e.Filter
 				}
-				return a.againRun(cmd, e, filter, o, edit, yes, fresh)
+				return a.againRun(cmd, e, againOpts{filter: filter, edit: edit, yes: yes, fresh: fresh}, o)
 			}
 			if edit || fresh {
 				return &ExitError{Code: exitUsage, Msg: "✗ --edit / --default apply to saved requests (api openapi pick, api gql --pick); a plain GET has nothing to edit"}

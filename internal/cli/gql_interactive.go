@@ -139,7 +139,8 @@ func (a *app) confirm(question string) bool {
 // gqlInteractive is `api gql` with no query on a terminal (or --pick): choose the
 // endpoint, choose a query or mutation (fzf, with a preview), edit the generated
 // skeleton in your editor, run it. Mutations ask for confirmation first.
-func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter string, yes bool, item string, noSave bool) error {
+func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, pf pickFlags, call gqlCall, item string) error {
+	endpoint, filter := call.endpoint, call.filter
 	if endpoint == "" {
 		eps := a.schemaProfile().Endpoints
 		if len(eps) == 0 {
@@ -269,7 +270,7 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 	}
 
 	// what runs decides whether to ask, not what you picked: you may have edited it
-	if !isSubscription(q) && !isReadOnlyQuery(q) && !yes { // a subscription is only printed, below
+	if !isSubscription(q) && !isReadOnlyQuery(q) && !pf.yes { // a subscription is only printed, below
 		if !a.confirm(fmt.Sprintf("✱ %s %s changes data on %s: run it?", kind, field, orUnset(a.session().BaseURL))) {
 			a.say("  (not run)")
 			return &ExitError{Code: exitGeneric}
@@ -307,8 +308,8 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 
 	// kept like an `openapi pick`, so `api again` can run it again
 	kept := ""
-	if !noSave && !o.dry {
-		kept = a.saveGQLRequest(label, kind, field, target, q, varsJSON, parsed, query, vars)
+	if !pf.noSave && !o.dry {
+		kept = a.saveGQLRequest(gqlOperation{label: label, kind: kind, field: field, target: target, query: q, varsJSON: varsJSON, parsed: parsed}, query, vars)
 	}
 	err = a.dispatch(ctx, spec, o, orDot(filter), "", nil)
 	if kept != "" && !o.dry {
@@ -320,19 +321,29 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 	return err
 }
 
+// gqlOperation is a query or mutation the picker produced: where it goes, what
+// it says, and the variables (parsed is varsJSON decoded, for the secret check).
+type gqlOperation struct {
+	label, kind, field, target string
+	query, varsJSON            string
+	parsed                     any
+}
+
 // saveGQLRequest keeps the query under .api/requests/ as a one-request .http
 // file and returns its path ("" if it was not kept, with the reason said). The
 // file is a runnable POST: `api run` / `api again` send it like any other.
 // Variables with a secret-looking name are left out, as in the printed
 // one-liner, and a query containing {{ is not kept: the runner would expand it.
-func (a *app) saveGQLRequest(label, kind, field, target, query, varsJSON string, parsed any, skelQuery, skelVars string) string {
+func (a *app) saveGQLRequest(op gqlOperation, skelQuery, skelVars string) string {
+	label, kind, field, target := op.label, op.kind, op.field, op.target
 	// like an openapi pick: a path on the active server, not a host that pins the
 	// file to one env and puts an internal name in something meant to be shared
 	if u, err := url.Parse(target); err == nil && u.IsAbs() && origin(target) == a.currentOrigin() {
 		target = u.RequestURI()
 	}
 	slug := strings.Trim(slugUnsafe.ReplaceAllString(label+"-"+field, "-"), "-")
-	doc := gqlRequestDoc(slug, kind, field, target, query, varsJSON, parsed)
+	op.target = target
+	doc := gqlRequestDoc(slug, op)
 	if doc == "" {
 		a.say("⚠ not kept: the query contains {{ (or cannot be written on one line), which `api run` would expand")
 		return ""
@@ -345,7 +356,7 @@ func (a *app) saveGQLRequest(label, kind, field, target, query, varsJSON string,
 	// the generated skeleton, for `api again --default` (best effort)
 	var skelParsed any
 	_ = json.Unmarshal([]byte(skelVars), &skelParsed)
-	if skel := gqlRequestDoc(slug, kind, field, target, skelQuery, skelVars, skelParsed); skel != "" {
+	if skel := gqlRequestDoc(slug, gqlOperation{kind: kind, field: field, target: target, query: skelQuery, varsJSON: skelVars, parsed: skelParsed}); skel != "" {
 		_ = os.WriteFile(saved+".orig", []byte(skel), 0o600)
 	}
 	a.say(fmt.Sprintf("✓ saved %s/%s (api run %s)", requestsDir, filepath.Base(saved), strings.TrimSuffix(filepath.Base(saved), ".http")))
@@ -355,7 +366,8 @@ func (a *app) saveGQLRequest(label, kind, field, target, query, varsJSON string,
 // gqlRequestDoc is the one-request .http file of a query ("" when it cannot be
 // written safely: {{ would be expanded by the runner, and the body must be one
 // line). Variables with a secret-looking name are left out, as in the one-liner.
-func gqlRequestDoc(slug, kind, field, target, query, varsJSON string, parsed any) string {
+func gqlRequestDoc(slug string, op gqlOperation) string {
+	kind, field, target, query, varsJSON, parsed := op.kind, op.field, op.target, op.query, op.varsJSON, op.parsed
 	note := ""
 	if parsed != nil && varsJSON != "{}" && hasSecretKey(parsed) {
 		varsJSON = "{}"

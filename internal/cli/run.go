@@ -204,7 +204,8 @@ pass --trust-hosts.`,
 				if all {
 					a.say(fmt.Sprintf("→ %s: %s %s", r.Name, r.Method, r.URL))
 				}
-				if err := a.runRequest(cmd, path, file, r, uservars, o, filter, o.trustHosts, false); err != nil {
+				job := runJob{path: path, file: file, req: r, uservars: uservars, filter: filter}
+				if err := a.runRequest(cmd, job, o); err != nil {
 					a.sayRunError(err)
 					if firstErr == nil {
 						firstErr = printedError(err)
@@ -250,17 +251,27 @@ pass --trust-hosts.`,
 	return cmd
 }
 
+// runJob is one request of a .http file on its way out: where the file lives
+// (a "< file" body is resolved from there), what the file holds, and what the
+// user supplied for it.
+type runJob struct {
+	path     string
+	file     *httpfile.File
+	req      *httpfile.Request
+	uservars map[string]string // --var k=v; nil when there are none
+	filter   string            // replaces the request's own @filter when set
+	silent   bool              // run only for the values later requests take from its response: nothing is printed
+}
+
 // runRequest interpolates one request and sends it through the normal pipeline.
-//
-// silent runs the request only for the values later requests take from its
-// response: nothing is printed.
-func (a *app) runRequest(cmd *cobra.Command, path string, file *httpfile.File, r *httpfile.Request, uservars map[string]string, o *reqOpts, filterOverride string, trust, silent bool) error {
-	if err := a.runDependencies(cmd, path, file, r, uservars, o, trust); err != nil {
+func (a *app) runRequest(cmd *cobra.Command, job runJob, o *reqOpts) error {
+	r := job.req
+	if err := a.runDependencies(cmd, job, o); err != nil {
 		return err
 	}
 	s, _ := a.resolve()
 	builtin := map[string]string{"base": s.BaseURL, "graphql": s.GraphQLURL, "token": s.Token, "env": s.Name}
-	rr, err := a.renderRequest(path, file, r, uservars, builtin, o.dry)
+	rr, err := a.renderRequest(job, builtin, o.dry)
 	if err != nil {
 		return err
 	}
@@ -269,7 +280,7 @@ func (a *app) runRequest(cmd *cobra.Command, path string, file *httpfile.File, r
 	// A file's host is the file author's choice, not yours: never hand it your
 	// session token by default.
 	opts := *o
-	if oc := origin(target); oc != "" && oc != origin(s.BaseURL) && !trust {
+	if oc := origin(target); oc != "" && oc != origin(s.BaseURL) && !o.trustHosts {
 		if secret {
 			return fmt.Errorf("request %q would send {{token}} / {{$env ...}} to %s, which is not the active base URL: pass --trust-hosts to allow it", r.Name, oc)
 		}
@@ -290,7 +301,7 @@ func (a *app) runRequest(cmd *cobra.Command, path string, file *httpfile.File, r
 		}
 	}
 
-	filter := filterOverride
+	filter := job.filter
 	if filter == "" {
 		filter = r.Filter
 	}
@@ -308,7 +319,7 @@ func (a *app) runRequest(cmd *cobra.Command, path string, file *httpfile.File, r
 		return err
 	}
 	a.remember(r.Name, resp)
-	if silent {
+	if job.silent {
 		if resp.Status >= 400 {
 			return &ExitError{Code: exitHTTP, Msg: fmt.Sprintf("✗ %s: HTTP %d %s (its response is needed by a later request)", r.Name, resp.Status, resp.StatusText)}
 		}
@@ -335,7 +346,8 @@ type renderedRequest struct {
 
 // renderRequest expands the variables of r. dry only matters for response
 // captures, which stand in as placeholders.
-func (a *app) renderRequest(path string, file *httpfile.File, r *httpfile.Request, uservars, builtin map[string]string, dry bool) (renderedRequest, error) {
+func (a *app) renderRequest(job runJob, builtin map[string]string, dry bool) (renderedRequest, error) {
+	r, file, uservars := job.req, job.file, job.uservars
 	var captureErr error
 	lookup := func(name string) (string, bool) {
 		if isCaptureRef(name) {
@@ -416,7 +428,7 @@ func (a *app) renderRequest(path string, file *httpfile.File, r *httpfile.Reques
 	if r.BodyFile != "" {
 		p := r.BodyFile
 		if !filepath.IsAbs(p) {
-			p = filepath.Join(filepath.Dir(path), p)
+			p = filepath.Join(filepath.Dir(job.path), p)
 		}
 		data, err := os.ReadFile(p)
 		if err != nil {
@@ -429,7 +441,8 @@ func (a *app) renderRequest(path string, file *httpfile.File, r *httpfile.Reques
 
 // runDependencies runs, once and silently, every request whose response r uses
 // and that has not run yet.
-func (a *app) runDependencies(cmd *cobra.Command, path string, file *httpfile.File, r *httpfile.Request, uservars map[string]string, o *reqOpts, trust bool) error {
+func (a *app) runDependencies(cmd *cobra.Command, job runJob, o *reqOpts) error {
+	r, file := job.req, job.file
 	if o.dry {
 		return nil // placeholders stand in for the values
 	}
@@ -459,7 +472,7 @@ func (a *app) runDependencies(cmd *cobra.Command, path string, file *httpfile.Fi
 		}
 		a.running[r.Name] = true
 		a.say(fmt.Sprintf("  ↳ running %q first: %q uses its response", name, r.Name))
-		err := a.runRequest(cmd, path, file, dep, uservars, o, "", trust, true)
+		err := a.runRequest(cmd, runJob{path: job.path, file: file, req: dep, uservars: job.uservars, silent: true}, o)
 		delete(a.running, r.Name)
 		if err != nil {
 			return err
