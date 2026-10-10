@@ -50,7 +50,7 @@ func TestConfigInitAlwaysListsEveryUseCase(t *testing.T) {
 		`# env_suffix = "dev"`,
 		"[defaults]", "# timeout", "# connect_timeout", "# retry", "# color", "# summary",
 		"# [env.local]", "# url =", "# graphql =", "# endpoints =", "# headers =",
-		"# [env.local.login]", "# gql =", "# token_path =", "# vars =", "api secret set upscale-local --for http://localhost:3000", "No url is needed for the login",
+		"# [env.local.login]", "# gql =", "# token_path =", "# vars =", "api secret set project-local --for http://localhost:3000", "No url is needed for the login",
 		"# [alias]", "# me =",
 		`# default_env = "local"`, // honoured in a project file, and the line tv/nvim/CI need
 	} {
