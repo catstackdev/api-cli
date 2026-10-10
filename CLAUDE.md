@@ -67,6 +67,7 @@ internal/session/         API_* env + shell quoting (Quote, Export, Unset)
 internal/schema/          GraphQL introspection: signatures, index lines, embedded preview.jq
 internal/jwt/             unverified exp/iat reader (display and cache expiry only)
 internal/assert/          `# @assert` evaluation (see gotcha 41)
+internal/gqlquery/        decisions on GraphQL text: IsReadOnly, IsSubscription, StripComments, Body, Target
 internal/envmap/          `env load` URL-variable mapping: names in, shell statements out (gotcha 18)
 internal/capture/         `{{name.response.*}}` references: parse, dependencies, the key/index body walker
                           (see gotcha 36; it is app-independent, `run_capture.go` holds the app-bound part)
@@ -157,7 +158,7 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     being shown, and a profile is still claimed only by `sameServer`. `TestWrapperBehaviour` drives the
     generated zsh and bash (also `/bin/bash` 3.2) against a stub binary.
 13. **`diff` runs a request against two envs: GET and GraphQL queries only.**
-    `isReadOnlyQuery` is deliberately conservative. Never relax it to allow
+    `gqlquery.IsReadOnly` is deliberately conservative. Never relax it to allow
     mutations, and keep each env's token separate.
 14. **`run` executes a file that may come from a repo.** A foreign origin gets
     no session token (`noAuth`), and a request that interpolates `{{token}}` /
@@ -330,7 +331,7 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     Test: `TestLoginWithoutASessionAdoptsTheEnvSoTheTokenIsUsable`.
 
 40. **Interactive `api gql`** (`gql_interactive.go`): the confirmation is
-    decided by `isReadOnlyQuery` on the text that will be sent, never by what
+    decided by `gqlquery.IsReadOnly` on the text that will be sent, never by what
     was picked; unsaved editor = cancel (the temp file's mtime is moved to the
     past first); comment lines are stripped before sending (collapsed onto one
     line a `#` would swallow the query); the printed one-liner never carries

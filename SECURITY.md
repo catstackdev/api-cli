@@ -90,9 +90,9 @@ origin), so it lives longer than the shell that logged in: `api logout` removes 
 
 | Rule | Code | Tests |
 | ---- | ---- | ----- |
-| A mutation asks for confirmation before it runs (default no), judged on the query that will actually run, so a query edited into a mutation asks too; `--yes` skips it | `gqlInteractive()` `isReadOnlyQuery()` | `TestGQLPickAsksBeforeRunningAMutation` `TestGQLPickAsksAgainWhenYouEditAQueryIntoAMutation` |
+| A mutation asks for confirmation before it runs (default no), judged on the query that will actually run, so a query edited into a mutation asks too; `--yes` skips it | `gqlInteractive()` `IsReadOnly()` (internal/gqlquery) | `TestGQLPickAsksBeforeRunningAMutation` `TestGQLPickAsksAgainWhenYouEditAQueryIntoAMutation` |
 | Quitting the editor without saving (or an editor error) cancels; invalid variables stop the run | `editTemp()` | `TestGQLPickQuittingWithoutSavingCancels` `TestGQLPickSendsTheVariablesYouEdited` |
-| The printed one-liner leaves variables out when a name looks like a secret, and comment lines never reach the query | `hasSecretKey()` `stripCommentLines()` | `TestGQLPickAsksBeforeRunningAMutation` `TestCommentLinesNeverReachTheQuery` |
+| The printed one-liner leaves variables out when a name looks like a secret, and comment lines never reach the query | `hasSecretKey()` `StripComments()` (internal/gqlquery) | `TestGQLPickAsksBeforeRunningAMutation` `TestCommentLinesNeverReachTheQuery` |
 
 ### `api schema` browser and editor
 
@@ -167,7 +167,7 @@ origin), so it lives longer than the shell that logged in: `api logout` removes 
 | ---- | ---- | ----- |
 | Project aliases cannot carry references or `--trust-hosts`, `--token`, `--base`, `--har-secrets` | `unsafeAlias()` | `TestProjectAliasCannotCarryReferencesOrTrustFlags` |
 | `.http` files do not get your token for other hosts; `{{token}}` / `{{$env}}` to another host is refused; `$env` reads `API_*` only; no header injection | `runRequest()` | `TestRunSafety` |
-| `diff` runs GET and read-only GraphQL only (it hits two servers) | `isReadOnlyQuery()` | `TestDiffGraphQLReadOnlyAndMutationsRefused` |
+| `diff` runs GET and read-only GraphQL only (it hits two servers) | `IsReadOnly()` (internal/gqlquery) | `TestDiffGraphQLReadOnlyAndMutationsRefused` `TestIsReadOnly` |
 | `env_suffix` is a plain suffix, never a path (`env load` sources that file) | `ValidateEnvSuffix()` | `TestEnvSuffixCannotBeAPath` |
 | `[vars]` names are validated identifiers (they end up in eval'd shell code) | `ValidateVarName()` | `TestVarsConfigIsValidated` |
 | `config set` never writes through a planted symlink (random exclusive temp file) | `writeAtomic()` | `TestSetDoesNotWriteThroughAPlantedSymlink` |

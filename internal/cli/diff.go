@@ -3,10 +3,10 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
+	"cybercat/api/internal/gqlquery"
 	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/jsondiff"
 	"cybercat/api/internal/render"
@@ -16,16 +16,6 @@ import (
 )
 
 // writeOp matches a GraphQL mutation/subscription operation keyword.
-var writeOp = regexp.MustCompile(`(^|[\s}{)])(mutation|subscription)\b`)
-
-var gqlComment = regexp.MustCompile(`#[^\n]*`)
-
-// isReadOnlyQuery is deliberately conservative: diff sends the request to TWO
-// environments, so anything that looks like a mutation is refused.
-func isReadOnlyQuery(q string) bool {
-	return !writeOp.MatchString(gqlComment.ReplaceAllString(q, ""))
-}
-
 // side is the outcome of the request against one env.
 type side struct {
 	env  string
@@ -76,8 +66,8 @@ Exit status: 0 identical, 1 different (like diff(1)), other codes for errors.`,
 			)
 			if gql {
 				payload, f, err := a.gqlPayload(args, vars, a.resolverFor(srcUser,
-					a.destOrigin(envs[0], gqlTarget(a.resolveForGraphQL(envs[0]), endpoint), o),
-					a.destOrigin(envs[1], gqlTarget(a.resolveForGraphQL(envs[1]), endpoint), o)))
+					a.destOrigin(envs[0], gqlquery.Target(a.resolveForGraphQL(envs[0]), endpoint), o),
+					a.destOrigin(envs[1], gqlquery.Target(a.resolveForGraphQL(envs[1]), endpoint), o)))
 				if err != nil {
 					return err
 				}
@@ -85,7 +75,7 @@ Exit status: 0 identical, 1 different (like diff(1)), other codes for errors.`,
 					Query string `json:"query"`
 				}
 				_ = json.Unmarshal([]byte(payload), &req)
-				if !isReadOnlyQuery(req.Query) {
+				if !gqlquery.IsReadOnly(req.Query) {
 					return fmt.Errorf("refusing to diff a mutation or subscription: it would run against both envs")
 				}
 				method, body, filter = "POST", payload, f
@@ -106,7 +96,7 @@ Exit status: 0 identical, 1 different (like diff(1)), other codes for errors.`,
 				t := target
 				if gql {
 					rs, _ := a.resolveFor(e)
-					t = gqlTarget(rs.GraphQLURL, endpoint)
+					t = gqlquery.Target(rs.GraphQLURL, endpoint)
 				}
 				spec, err := a.newSpecFor(e, method, t, o)
 				if err != nil {

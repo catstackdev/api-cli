@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"cybercat/api/internal/gqlquery"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -198,8 +199,8 @@ func TestGraphQLTarget(t *testing.T) {
 		{"https://h/graphql", "https://other/x", "https://other/x"},
 	}
 	for _, c := range cases {
-		if got := gqlTarget(c.base, c.ep); got != c.want {
-			t.Errorf("gqlTarget(%q,%q) = %q, want %q", c.base, c.ep, got, c.want)
+		if got := gqlquery.Target(c.base, c.ep); got != c.want {
+			t.Errorf("gqlquery.Target(%q,%q) = %q, want %q", c.base, c.ep, got, c.want)
 		}
 	}
 }

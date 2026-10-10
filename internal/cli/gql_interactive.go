@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"cybercat/api/internal/gqlquery"
 	"cybercat/api/internal/schema"
 	"cybercat/api/internal/secret"
 	"cybercat/api/internal/session"
@@ -92,18 +93,6 @@ func splitEditorDoc(doc string) (query, vars string) {
 		}
 	}
 	return doc, ""
-}
-
-// stripCommentLines drops whole-line # comments (the header this file adds, and
-// any you write): collapsed to one line, a comment would swallow the query.
-func stripCommentLines(q string) string {
-	var keep []string
-	for _, l := range strings.Split(q, "\n") {
-		if !strings.HasPrefix(strings.TrimSpace(l), "#") {
-			keep = append(keep, l)
-		}
-	}
-	return strings.Join(keep, "\n")
 }
 
 // hasSecretKey reports whether a JSON value has a secret-looking key anywhere.
@@ -256,7 +245,7 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, pf pickFlags, call
 		return &ExitError{Code: exitGeneric}
 	}
 	q, v := splitEditorDoc(edited)
-	q = stripCommentLines(q)
+	q = gqlquery.StripComments(q)
 	if strings.TrimSpace(strings.ReplaceAll(q, "\n", "")) == "" || !strings.Contains(q, "{") {
 		return &ExitError{Code: exitUsage, Msg: "✗ no query in the file"}
 	}
@@ -270,18 +259,18 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, pf pickFlags, call
 	}
 
 	// what runs decides whether to ask, not what you picked: you may have edited it
-	if !isSubscription(q) && !isReadOnlyQuery(q) && !pf.yes { // a subscription is only printed, below
+	if !gqlquery.IsSubscription(q) && !gqlquery.IsReadOnly(q) && !pf.yes { // a subscription is only printed, below
 		if !a.confirm(fmt.Sprintf("✱ %s %s changes data on %s: run it?", kind, field, orUnset(a.session().BaseURL))) {
 			a.say("  (not run)")
 			return &ExitError{Code: exitGeneric}
 		}
 	}
 
-	body, err := gqlBody(q, compactJSON(varsJSON))
+	body, err := gqlquery.Body(q, compactJSON(varsJSON))
 	if err != nil {
 		return err
 	}
-	target := gqlTarget(a.session().GraphQLURL, path)
+	target := gqlquery.Target(a.session().GraphQLURL, path)
 	spec, err = a.newSpec("POST", target, o)
 	if err != nil {
 		return err
@@ -300,7 +289,7 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, pf pickFlags, call
 		}
 	}
 	a.say("→ " + cmdline)
-	if isSubscription(q) {
+	if gqlquery.IsSubscription(q) {
 		// an HTTP POST cannot run it: it streams over a WebSocket, which `api gql` opens
 		a.say("ℹ a subscription streams until Ctrl+C: run the line above")
 		return nil
@@ -373,7 +362,7 @@ func gqlRequestDoc(slug string, op gqlOperation) string {
 		varsJSON = "{}"
 		note = "# the variables were left out: a name looks like a secret\n"
 	}
-	body, err := gqlBody(query, compactJSON(varsJSON))
+	body, err := gqlquery.Body(query, compactJSON(varsJSON))
 	if err != nil || strings.Contains(body, "{{") || strings.ContainsAny(body, "\n\r") {
 		return ""
 	}

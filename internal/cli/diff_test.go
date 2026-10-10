@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cybercat/api/internal/gqlquery"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -111,7 +112,7 @@ func TestDiffGraphQLReadOnlyAndMutationsRefused(t *testing.T) {
 	if dev.got.path != "" || thien.got.path != "" {
 		t.Fatal("a refused mutation must send nothing")
 	}
-	if !isReadOnlyQuery("query { me { id } }") || !isReadOnlyQuery("{ __typename }") || !isReadOnlyQuery("# mutation in a comment\n{ a }") {
+	if !gqlquery.IsReadOnly("query { me { id } }") || !gqlquery.IsReadOnly("{ __typename }") || !gqlquery.IsReadOnly("# mutation in a comment\n{ a }") {
 		t.Fatal("false positive on a read-only query")
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"cybercat/api/internal/gqlquery"
 	"cybercat/api/internal/gqlws"
 	"cybercat/api/internal/har"
 	"cybercat/api/internal/httpc"
@@ -30,14 +31,6 @@ type subOpts struct {
 	tokenInInit bool
 	init        []string
 	strict      bool
-}
-
-var subscriptionOp = regexp.MustCompile(`^\s*subscription\b`)
-
-// isSubscription reports whether the operation is a subscription (comment lines
-// do not count): it then runs over a WebSocket, not as an HTTP POST.
-func isSubscription(query string) bool {
-	return subscriptionOp.MatchString(stripCommentLines(query))
 }
 
 // errStopStream ends a subscription from inside the event callback; the reason
@@ -111,7 +104,7 @@ func (a *app) subscribeConfig(o *reqOpts, so *subOpts, call gqlCall) (gqlws.Conf
 	}
 
 	s, prof := a.resolve()
-	target := gqlTarget(s.GraphQLURL, endpoint)
+	target := gqlquery.Target(s.GraphQLURL, endpoint)
 	spec, err := a.newSpec("GET", target, o)
 	if err != nil {
 		return gqlws.Config{}, err

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cybercat/api/internal/gqlquery"
 	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/schema"
 
@@ -55,7 +56,7 @@ func (a *app) ugqlNested() bool { return a.getenv("UGQL_CACHE_DIR") == "" }
 // ugqlKey names the server the GraphQL requests of this shell go to.
 func (a *app) ugqlKey() (string, bool) {
 	s := a.session()
-	full, err := httpc.ResolveURL(s.BaseURL, gqlTarget(s.GraphQLURL, ""), nil)
+	full, err := httpc.ResolveURL(s.BaseURL, gqlquery.Target(s.GraphQLURL, ""), nil)
 	if err != nil {
 		return "", false
 	}
@@ -78,11 +79,11 @@ func (a *app) ugqlCacheDir() string {
 // introspect POSTs a query to the endpoint and returns the response, recovering
 // from a rejected token like any other request.
 func (a *app) introspect(ctx context.Context, o *reqOpts, endpoint, query, varsJSON string) (httpc.Spec, *httpc.Response, error) {
-	body, err := gqlBody(query, varsJSON)
+	body, err := gqlquery.Body(query, varsJSON)
 	if err != nil {
 		return httpc.Spec{}, nil, err
 	}
-	spec, err := a.newSpec("POST", gqlTarget(a.session().GraphQLURL, endpoint), o)
+	spec, err := a.newSpec("POST", gqlquery.Target(a.session().GraphQLURL, endpoint), o)
 	if err != nil {
 		return spec, nil, err
 	}

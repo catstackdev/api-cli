@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"cybercat/api/internal/gqlquery"
 	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/schema"
 	"encoding/json"
@@ -119,13 +120,13 @@ func (a *app) schemaJobs(names []string, o *reqOpts, prefix string) ([]schemaJob
 			continue
 		}
 		seen[label] = true
-		body, err := gqlBody(schema.SchemaQuery, "{}")
+		body, err := gqlquery.Body(schema.SchemaQuery, "{}")
 		if err != nil {
 			return nil, err
 		}
 		// specs are built here, one at a time: building one reads config and
 		// may print a warning; only the network calls run concurrently
-		spec, err := a.newSpec("POST", gqlTarget(a.session().GraphQLURL, schemaEndpoint(a.effectivePrefix(prefix), n)), o)
+		spec, err := a.newSpec("POST", gqlquery.Target(a.session().GraphQLURL, schemaEndpoint(a.effectivePrefix(prefix), n)), o)
 		if err != nil {
 			return nil, err
 		}

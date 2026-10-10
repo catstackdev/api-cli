@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cybercat/api/internal/gqlquery"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -208,7 +209,7 @@ func TestSubscriptionExitCodes(t *testing.T) {
 		}
 	})
 	t.Run("a comment mentioning subscription is still a query", func(t *testing.T) {
-		if isSubscription("# subscription\nquery { me { id } }") || !isSubscription("# c\n  subscription S { x }") {
+		if gqlquery.IsSubscription("# subscription\nquery { me { id } }") || !gqlquery.IsSubscription("# c\n  subscription S { x }") {
 			t.Fatal("detection")
 		}
 	})

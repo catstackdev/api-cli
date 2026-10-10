@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"cybercat/api/internal/gqlquery"
 	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/jsonbody"
 	"cybercat/api/internal/render"
@@ -41,7 +42,7 @@ func (a *app) loginFromConfig(o *reqOpts, extra []string, dry bool) (httpc.Spec,
 	// BEFORE any reference is resolved.
 	var target, tokenPath string
 	if l.GQL != "" {
-		target = gqlTarget(rs.GraphQLURL, l.Endpoint)
+		target = gqlquery.Target(rs.GraphQLURL, l.Endpoint)
 		tokenPath = defaultGQLTokenPath
 	} else {
 		target = l.Path
@@ -78,7 +79,7 @@ func (a *app) loginFromConfig(o *reqOpts, extra []string, dry bool) (httpc.Spec,
 	}
 	payload := varsJSON
 	if l.GQL != "" {
-		if payload, err = gqlBody(l.GQL, varsJSON); err != nil {
+		if payload, err = gqlquery.Body(l.GQL, varsJSON); err != nil {
 			return httpc.Spec{}, "", err
 		}
 	}
@@ -131,7 +132,7 @@ No bearer token is sent on the login call: a stale one can turn it into a 401.
   api login --gql -e v2/auth @login.graphql -V input.username=me@x.com -V input.password=@prompt`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.noAuth = true
-			resolve := a.resolverFor(srcUser, a.destOrigin(a.envName, gqlTarget(a.session().GraphQLURL, endpoint), o))
+			resolve := a.resolverFor(srcUser, a.destOrigin(a.envName, gqlquery.Target(a.session().GraphQLURL, endpoint), o))
 			if o.dry { // a dry run must not read the Keychain, prompt or print a secret
 				resolve = maskRef
 			}
@@ -151,7 +152,7 @@ No bearer token is sent on the login call: a stale one can turn it into a 401.
 				if tokenPath == "." {
 					tokenPath = defaultGQLTokenPath
 				}
-				if spec, err = a.newSpec("POST", gqlTarget(a.session().GraphQLURL, endpoint), o); err != nil {
+				if spec, err = a.newSpec("POST", gqlquery.Target(a.session().GraphQLURL, endpoint), o); err != nil {
 					return err
 				}
 				setJSONBody(&spec, payload)

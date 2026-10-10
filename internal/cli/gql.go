@@ -6,27 +6,11 @@ import (
 	"os"
 	"strings"
 
+	"cybercat/api/internal/gqlquery"
 	"cybercat/api/internal/jsonbody"
 
 	"github.com/spf13/cobra"
 )
-
-// gqlTarget resolves -e: "" is the base, a full URL is used as-is, anything
-// else is appended to $API_GRAPHQL_URL (default "/graphql" on the base URL).
-func gqlTarget(graphqlURL, endpoint string) string {
-	base := graphqlURL
-	if base == "" {
-		base = "/graphql"
-	}
-	switch {
-	case endpoint == "":
-		return base
-	case strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://"):
-		return endpoint
-	default:
-		return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(endpoint, "/")
-	}
-}
 
 // gqlError returns the first GraphQL error message of a response, if any.
 func gqlError(body []byte) string {
@@ -102,7 +86,7 @@ func (a *app) gqlPayload(args, vars []string, resolve jsonbody.Resolver) (payloa
 		return "", "", fmt.Errorf("vars is not valid JSON: %s", varsJSON)
 	}
 
-	payload, err = gqlBody(query, varsJSON)
+	payload, err = gqlquery.Body(query, varsJSON)
 	return payload, filter, err
 }
 
@@ -113,15 +97,6 @@ type gqlCall struct {
 	payload  string   // the JSON request body (empty for the picker, which builds its own)
 	filter   string   // jq filter for the result
 	pass     []string // curl arguments after --
-}
-
-// gqlBody is the JSON request body of a GraphQL call.
-func gqlBody(query, varsJSON string) (string, error) {
-	b, err := json.Marshal(struct {
-		Query     string          `json:"query"`
-		Variables json.RawMessage `json:"variables"`
-	}{query, json.RawMessage(varsJSON)})
-	return string(b), err
 }
 
 func (a *app) gqlCmd() *cobra.Command {
@@ -158,7 +133,7 @@ func (a *app) gqlCmd() *cobra.Command {
 				return a.gqlInteractive(cmd.Context(), o, pf, gqlCall{endpoint: endpoint, filter: filter}, item)
 			}
 
-			resolver := a.resolverFor(srcUser, a.destOrigin(a.envName, gqlTarget(a.session().GraphQLURL, endpoint), o))
+			resolver := a.resolverFor(srcUser, a.destOrigin(a.envName, gqlquery.Target(a.session().GraphQLURL, endpoint), o))
 			if o.dry {
 				resolver = maskRef
 			}
@@ -167,12 +142,12 @@ func (a *app) gqlCmd() *cobra.Command {
 				return err
 			}
 
-			if q := queryOf(payload); isSubscription(q) {
+			if q := gqlquery.Text(payload); gqlquery.IsSubscription(q) {
 				so.strict = strict
 				return a.gqlSubscribe(cmd.Context(), cmd, o, &so, gqlCall{endpoint: endpoint, payload: payload, filter: filter, pass: pass})
 			}
 
-			target := gqlTarget(a.session().GraphQLURL, endpoint)
+			target := gqlquery.Target(a.session().GraphQLURL, endpoint)
 			spec, err := a.newSpec("POST", target, o)
 			if err != nil {
 				return err
@@ -207,15 +182,6 @@ func (a *app) gqlCmd() *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("endpoint", a.endpointCompletion)
 	bindSubscribeFlags(cmd, &so)
 	return cmd
-}
-
-// queryOf is the query text of a gqlBody payload.
-func queryOf(payload string) string {
-	var r struct {
-		Query string `json:"query"`
-	}
-	_ = json.Unmarshal([]byte(payload), &r)
-	return r.Query
 }
 
 // formCmd is multipart / urlencoded POST: no JSON headers.

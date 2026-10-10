@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cybercat/api/internal/gqlquery"
 	"cybercat/api/internal/history"
 	"cybercat/api/internal/httpfile"
 
@@ -69,7 +70,7 @@ func requestIsReadOnly(r *httpfile.Request) bool {
 	var b struct {
 		Query *string `json:"query"`
 	}
-	return json.Unmarshal([]byte(r.Body), &b) == nil && b.Query != nil && isReadOnlyQuery(*b.Query)
+	return json.Unmarshal([]byte(r.Body), &b) == nil && b.Query != nil && gqlquery.IsReadOnly(*b.Query)
 }
 
 // againOpts are the options of `api again` that only a saved request uses.

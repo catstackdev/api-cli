@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cybercat/api/internal/gqlquery"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -155,7 +156,7 @@ func TestGQLWithoutAQueryStillSaysSoWhenNotInteractive(t *testing.T) {
 }
 
 func TestCommentLinesNeverReachTheQuery(t *testing.T) {
-	if got := stripCommentLines("# header\nquery { a }\n  # note\n"); strings.Contains(got, "#") || !strings.Contains(got, "query { a }") {
+	if got := gqlquery.StripComments("# header\nquery { a }\n  # note\n"); strings.Contains(got, "#") || !strings.Contains(got, "query { a }") {
 		t.Fatalf("%q", got)
 	}
 }
