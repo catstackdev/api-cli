@@ -284,3 +284,60 @@ func TestAProjectCannotMoveAnAnchoredGlobalEnv(t *testing.T) {
 		t.Fatal("no warning")
 	}
 }
+
+// SettableKeys feeds help text and shell completion: its order is part of the output.
+func TestSettableKeysListIsStable(t *testing.T) {
+	want := []string{
+		"default_env",
+		"defaults.timeout", "defaults.connect_timeout", "defaults.retry", "defaults.color", "defaults.summary", "defaults.token_cache", "defaults.auto_login", "defaults.editor",
+		"env.<name>.url", "env.<name>.graphql", "env.<name>.endpoints", "env.<name>.endpoint_prefix", "env.<name>.openapi", "env.<name>.subscriptions", "env.<name>.ws_protocol", "env.<name>.ws_token_in_init", "env.<name>.token_env", "env.<name>.headers.<Header>",
+		"vars.base_url", "vars.graphql_url", "vars.env_suffix",
+		"env.<name>.login.path", "env.<name>.login.gql", "env.<name>.login.endpoint", "env.<name>.login.token_path", "env.<name>.login.vars.<name>",
+		"alias.<name>",
+	}
+	if !reflect.DeepEqual(SettableKeys, want) {
+		t.Fatalf("SettableKeys changed:\n got %q\nwant %q", SettableKeys, want)
+	}
+}
+
+// The error texts users see for a key that does not exist, by the shape of the key.
+func TestUnknownKeyMessages(t *testing.T) {
+	for key, want := range map[string]string{
+		"nope":                `unknown key "nope" (known: default_env, `,
+		"defaults.nope":       `unknown key defaults.nope`,
+		"vars.nope":           `unknown key "vars.nope" (known: vars.base_url, vars.graphql_url, vars.env_suffix)`,
+		"env.dev.nope":        `unknown key "env.dev.nope"`,
+		"env.dev.login.nope":  `unknown key "env.dev.login.nope" (known: login.path, login.gql, login.endpoint, login.token_path, login.vars.<name>)`,
+		"env.dev.login.vars.": `unknown key "env.dev.login.vars." (known: login.path`,
+		"env.dev.headers.A.B": `unknown key "env.dev.headers.A.B"`,
+		"env.dev":             `unknown key "env.dev" (known: default_env, `,
+	} {
+		var c Config
+		err := Set(&c, key, "v")
+		if err == nil || !strings.HasPrefix(err.Error(), want) {
+			t.Errorf("Set(%q): %v\n  want prefix %q", key, err, want)
+		}
+	}
+}
+
+// The error texts for refused values: they name what is wrong, in the words users see.
+func TestRefusalMessages(t *testing.T) {
+	for _, c := range []struct{ key, value, want string }{
+		{"defaults.retry", "-1", "retry must be a non-negative integer"},
+		{"defaults.color", "pink", "color must be auto, always or never"},
+		{"defaults.summary", "maybe", "summary must be true or false"},
+		{"defaults.token_cache", "maybe", "token_cache must be true or false"},
+		{"defaults.auto_login", "maybe", "auto_login must be true or false"},
+		{"defaults.editor", "a\nb", "editor must be one line"},
+		{"env.dev.ws_token_in_init", "maybe", "ws_token_in_init must be true or false"},
+		{"env.dev.login.token_path", "data.token", "token_path must be a jq path like .data.token"},
+		{"env.dev.login.vars.password", "hunter2", "env.dev.login.vars.password looks like a secret"},
+		{"env.dev.password", "x", `refusing to store "env.dev.password": config never holds secrets`},
+	} {
+		var cfg Config
+		err := Set(&cfg, c.key, c.value)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("Set(%q, %q): %v\n  want it to contain %q", c.key, c.value, err, c.want)
+		}
+	}
+}
