@@ -95,11 +95,11 @@ func (a *app) newSpecFor(envName, method, target string, o *reqOpts) (httpc.Spec
 		spec.SetHeader(name, prof.Headers[name])
 	}
 	for _, h := range o.headers {
-		name, value, ok := strings.Cut(h, ":")
-		if !ok || strings.TrimSpace(name) == "" {
-			return httpc.Spec{}, fmt.Errorf("bad header %q: want \"Name: value\"", h)
+		name, value, err := httpc.ParseHeader(h)
+		if err != nil {
+			return httpc.Spec{}, err
 		}
-		spec.SetHeader(strings.TrimSpace(name), strings.TrimSpace(value))
+		spec.SetHeader(name, value)
 	}
 	if s.Token != "" && !o.noAuth && !spec.HasHeader("Authorization") {
 		// Your token goes to the active base URL only. An absolute URL on another

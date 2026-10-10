@@ -38,7 +38,7 @@ default_env = "nope"
 [env.a]
 url = "ftp://x"
 graphql = "not a url"
-headers = { Authorization = "Bearer x" }
+headers = { Authorization = "Bearer x", "X-API-Key" = "k", "X-Tenant" = "t" }
 [env.a.login]
 endpoint = "v2/auth"
 [env.b.login]
@@ -50,6 +50,7 @@ gql = "mutation { x }"
 		`error: env.a.url "ftp://x" is not an http(s) URL`,
 		`error: env.a.graphql "not a url"`,
 		`warn: env.a.headers has Authorization`,
+		`warn: env.a.headers.X-API-Key looks like a credential`,
 		`error: env.a.login: login needs exactly one of path`,
 		`warn: env.a.login.endpoint only applies to a GraphQL login`,
 		`error: env.b.login: login needs exactly one of path`,

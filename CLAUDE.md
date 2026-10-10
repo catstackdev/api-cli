@@ -31,7 +31,7 @@ internal/cli/             cobra commands; one file per concern
   request.go              newSpec/newSpecFor, verbCmd, dispatch/send/finish pipeline
   request_flags.go        reqOpts + bind*Flags, positional/filter/`--` parsing
   request_print.go        curlLine (masked), execCurl, header printing
-  gql.go  login.go  env.go  env_example.go  config_cmd.go  diff.go  run.go
+  gql.go  gql_subscribe.go  login.go  env.go  env_example.go  config_cmd.go  diff.go  run.go
   history.go  again_run.go  import.go  cache.go  doctor.go  doctor_requests.go  tools.go  complete.go
   secret.go  refs.go
   resolve.go              which server/token/profile a request may use (security core)
@@ -50,6 +50,7 @@ internal/cli/             cobra commands; one file per concern
 internal/ui/              ALL terminal presentation: colour decision, styled
                           messages, status/header lines, pager, tables
 internal/httpc/           Spec -> request / curl args / client / trace
+internal/gqlws/           GraphQL subscription over WebSocket (graphql-transport-ws and legacy graphql-ws)
 internal/render/          body printing, gojq filter, JSON colour, Decode
 internal/config/          global + project TOML, merge, Set/Get, Lint, schema.json
                           (JSON Schema; a test keeps it equal to the parser)
@@ -114,7 +115,7 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
 6. **Exit codes are a contract**: 22 for HTTP >= 400 (body still printed first),
    28/7/6 for transport errors, 5 for a bad filter, 4 for `--strict` GraphQL
    errors, 3 for a failed `# @assert` (which, when present, replaces 22 for
-   that request). Scripts rely on `api get ... && ...`.
+   that request), 28 also when `--timeout` ends a subscription. Scripts rely on `api get ... && ...`.
 7. **Completion must stay offline and fast.** It runs on every TAB. No network,
    no slow disk scans. History is best-effort; never fail a request over it.
 8. **Name collisions**: the shim defines only `api`. Do not add `cget`/`cpost`
@@ -382,6 +383,28 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     drops them, `--keep` overrules a drop but never the secret masking). Add a
     header to a group there, not in `render.go`.
 
+44. **Headers go through `httpc.CheckHeader`** (`-H` via `ParseHeader`, `.http`
+    requests in `run`, and env `headers` on config read and `config set`): token
+    name, no control characters, errors that name the header and never the value.
+    A new place that builds a header from outside input must call it. A config
+    file holds no credential header (`X-API-Key`...): `config set` refuses it
+    (`IsSecretKey`) and `Lint` warns for any secret-looking name; the way to send
+    one is `-H "X-API-Key: $VAR"` or `{{$env API_NAME}}`. Header values as
+    `@keychain:` references would be a new credential path (needs the same-origin
+    rule the token has, and per-header provenance after `Merge`): not built.
+
+45. **Subscriptions run over a WebSocket built from the SAME Spec** (`gql_subscribe.go`,
+    protocol in `internal/gqlws`, the only user of `coder/websocket`): `gqlSubscribe`
+    calls `newSpec` and converts its URL and headers, so the token's destination
+    rules (gotchas 10, 28, 33) apply unchanged; never read `s.Token` there. The
+    token goes into `connection_init` only from the Authorization header the Spec
+    already carries. A subscription is detected from the query text
+    (`isSubscription`), upgrades are never redirected, and `env.<name>.subscriptions`
+    is a PATH (`ValidateSubscriptionsPath`). Do not add a config key whose name
+    contains `auth`, `pass`, `secret`, `key` or `token` as a whole word: `IsSecretKey`
+    makes `config set` refuse it (`ws_init_auth` was renamed `ws_token_in_init` for that).
+    `setLogin` keeps the rest of the env; do not rebuild an `Env` field by field.
+
 ## Output rules (internal/ui)
 
 - Commands decide WHAT to print; `internal/ui` decides how it looks. Never write
@@ -459,7 +482,7 @@ make smoke                 # whole tool end to end, see below
 
 ## Conventions
 
-- Go: stdlib first; cobra for CLI, gojq for jq. Errors that should end the run
+- Go: stdlib first; cobra for CLI, gojq for jq, coder/websocket for subscriptions (only in `internal/gqlws`). Errors that should end the run
   with a code are `*ExitError`; everything else is exit 2 (usage).
 - Comments explain WHY (the non-obvious constraint), not what.
 - Shell (`internal/cli/shim.zsh`): house style from `~/dotfiles/CLAUDE.md` (`::` namespace,

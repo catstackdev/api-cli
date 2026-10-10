@@ -187,6 +187,12 @@ func plan(key string, old, want Config) (edits []edit, drop *inlineDrop, err err
 			return str(table, "endpoint_prefix", e.EndpointPrefix), nil, nil
 		case "openapi":
 			return str(table, "openapi", e.OpenAPI), nil, nil
+		case "subscriptions":
+			return str(table, "subscriptions", e.Subscriptions), nil, nil
+		case "ws_protocol":
+			return str(table, "ws_protocol", e.WSProtocol), nil, nil
+		case "ws_token_in_init":
+			return []edit{{table, "ws_token_in_init", strconv.FormatBool(*e.WSTokenInInit)}}, nil, nil
 		case "endpoints":
 			return []edit{{table, "endpoints", tomlArray(e.Endpoints)}}, nil, nil
 		}

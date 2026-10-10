@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/secretref"
 
 	"github.com/pelletier/go-toml/v2"
@@ -58,6 +59,16 @@ type Env struct {
 	OpenAPI  string            `toml:"openapi,omitempty"`
 	TokenEnv string            `toml:"token_env,omitempty"`
 	Headers  map[string]string `toml:"headers,omitempty"`
+	// Subscriptions is the PATH of this env's GraphQL WebSocket endpoint on its own
+	// server (ws:// or wss:// follows the url's scheme). A path, never a URL: the
+	// token goes to the env's server only. Empty means the GraphQL path itself.
+	Subscriptions string `toml:"subscriptions,omitempty"`
+	// WSProtocol is the subscription subprotocol: graphql-transport-ws (default) or
+	// the legacy graphql-ws.
+	WSProtocol string `toml:"ws_protocol,omitempty"`
+	// WSTokenInInit also puts the token in connection_init, for servers (browser
+	// oriented ones) that read it there and not from the upgrade header.
+	WSTokenInInit *bool `toml:"ws_token_in_init,omitempty"`
 	// Login describes how to log in to this env without typing anything. Like
 	// token_env it is honoured only from the GLOBAL file: it names where your
 	// credentials come from and where they are sent.
@@ -162,6 +173,25 @@ func ValidateOpenAPIPath(s string) error {
 		return nil
 	}
 	return fmt.Errorf("openapi %q must be a path on the server like /openapi.json (not a URL)", s)
+}
+
+// ValidateSubscriptionsPath is ValidateOpenAPIPath for env.<name>.subscriptions: a
+// path on the env's own server, so a config file cannot choose where the token
+// is sent over WebSocket.
+func ValidateSubscriptionsPath(s string) error {
+	if err := ValidateOpenAPIPath(s); err != nil {
+		return fmt.Errorf("subscriptions %q must be a path on the server like /graphql (not a URL)", s)
+	}
+	return nil
+}
+
+// ValidateWSProtocol accepts "" or one of the two subscription subprotocols.
+func ValidateWSProtocol(s string) error {
+	switch s {
+	case "", "graphql-transport-ws", "graphql-ws":
+		return nil
+	}
+	return fmt.Errorf("ws_protocol %q must be graphql-transport-ws or graphql-ws", s)
 }
 
 var varName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -293,7 +323,10 @@ func ParseText(data []byte, path string) (Config, error) {
 			ValidateTokenEnv(e.TokenEnv),
 			ValidateEndpointPrefix(e.EndpointPrefix),
 			ValidateOpenAPIPath(e.OpenAPI),
+			ValidateSubscriptionsPath(e.Subscriptions),
+			ValidateWSProtocol(e.WSProtocol),
 			ValidateLogin(e.Login),
+			ValidateHeaders(e.Headers),
 		} {
 			if err != nil {
 				return Config{}, fmt.Errorf("%s: env.%s: %w", path, name, err)
@@ -301,6 +334,19 @@ func ParseText(data []byte, path string) (Config, error) {
 		}
 	}
 	return c, nil
+}
+
+// ValidateHeaders checks the shape of an env's headers (httpc.CheckHeader): a
+// name that is not an HTTP token or a control character in a value would let a
+// config file, possibly from a cloned repo, start a second header line. Errors
+// name the header, never its value.
+func ValidateHeaders(h map[string]string) error {
+	for _, n := range slices.Sorted(maps.Keys(h)) {
+		if err := httpc.CheckHeader(n, h[n]); err != nil {
+			return fmt.Errorf("headers: %w", err)
+		}
+	}
+	return nil
 }
 
 // tokenEnvName limits token_env to this tool's own variables. A config file can
@@ -457,6 +503,15 @@ func Merge(base, over Config) Config {
 		}
 		if v.OpenAPI != "" {
 			e.OpenAPI = v.OpenAPI
+		}
+		if v.Subscriptions != "" {
+			e.Subscriptions = v.Subscriptions
+		}
+		if v.WSProtocol != "" {
+			e.WSProtocol = v.WSProtocol
+		}
+		if v.WSTokenInInit != nil {
+			e.WSTokenInInit = v.WSTokenInInit
 		}
 		if v.TokenEnv != "" {
 			e.TokenEnv = v.TokenEnv

@@ -9,5 +9,8 @@
 default_env = "local"
 
 [env.local]
-url = "http://127.0.0.1:8787"
-# url = "http://localhost:3000"
+# url = "http://127.0.0.1:8787"
+
+# for testing
+url = "http://localhost:3000"
+openapi = "/openapi.json"

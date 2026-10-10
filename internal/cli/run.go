@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/httpfile"
 	"cybercat/api/internal/ui"
 
@@ -393,6 +394,9 @@ func (a *app) renderRequest(path string, file *httpfile.File, r *httpfile.Reques
 		value, err := interp(h.Value)
 		if err != nil {
 			return renderedRequest{}, err
+		}
+		if err := httpc.CheckHeader(name, value); err != nil {
+			return renderedRequest{}, fmt.Errorf("request %q: %w", r.Name, err)
 		}
 		headers = append(headers, headerKV{name, value})
 	}

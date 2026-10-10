@@ -3,9 +3,13 @@ package config
 import (
 	_ "embed"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
+
+	"cybercat/api/internal/secret"
 )
 
 // Issue is one finding of Lint.
@@ -47,9 +51,12 @@ func Lint(c Config, project bool, known map[string]bool) []Issue {
 				fail("env.%s.%s %q is not an http(s) URL", n, key, v)
 			}
 		}
-		for h := range e.Headers {
-			if strings.EqualFold(h, "authorization") {
+		for _, h := range slices.Sorted(maps.Keys(e.Headers)) {
+			switch {
+			case strings.EqualFold(h, "authorization"):
 				warn("env.%s.headers has Authorization: tokens come from a login or token_env, not from the config", n)
+			case secret.Name(h):
+				warn("env.%s.headers.%s looks like a credential: a config file should not hold it (and `config set` refuses it). Send it per call: -H \"%s: $YOUR_VAR\", or from a .http file with {{$env API_NAME}}", n, h, h)
 			}
 		}
 		if project && e.TokenEnv != "" {

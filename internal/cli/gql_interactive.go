@@ -269,7 +269,7 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 	}
 
 	// what runs decides whether to ask, not what you picked: you may have edited it
-	if !isReadOnlyQuery(q) && !yes {
+	if !isSubscription(q) && !isReadOnlyQuery(q) && !yes { // a subscription is only printed, below
 		if !a.confirm(fmt.Sprintf("✱ %s %s changes data on %s: run it?", kind, field, orUnset(a.session().BaseURL))) {
 			a.say("  (not run)")
 			return &ExitError{Code: exitGeneric}
@@ -299,6 +299,11 @@ func (a *app) gqlInteractive(ctx context.Context, o *reqOpts, endpoint, filter s
 		}
 	}
 	a.say("→ " + cmdline)
+	if isSubscription(q) {
+		// an HTTP POST cannot run it: it streams over a WebSocket, which `api gql` opens
+		a.say("ℹ a subscription streams until Ctrl+C: run the line above")
+		return nil
+	}
 
 	// kept like an `openapi pick`, so `api again` can run it again
 	kept := ""

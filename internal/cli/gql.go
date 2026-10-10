@@ -125,6 +125,7 @@ func (a *app) gqlCmd() *cobra.Command {
 		yes      bool
 		noSave   bool
 		item     string
+		so       subOpts
 	)
 	cmd := &cobra.Command{
 		Use:   "gql [query|@file|-] [vars-json] [.filter] [-- curl args]",
@@ -134,7 +135,8 @@ func (a *app) gqlCmd() *cobra.Command {
   api gql 'query($id: ID!) { user(id: $id) { name } }' -V id=1 '.data'
   api gql @queries/me.graphql
   echo 'query { me { id } }' | api gql
-  api gql                   # on a terminal: pick the endpoint and the query with fzf`,
+  api gql                   # on a terminal: pick the endpoint and the query with fzf
+  api gql 'subscription { orderUpdated { id status } }' .data.orderUpdated   # WebSocket: one JSON line per event`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			before, pass := splitDash(cmd, args)
 
@@ -155,6 +157,11 @@ func (a *app) gqlCmd() *cobra.Command {
 			payload, filter, err := a.gqlPayload(before, vars, resolver)
 			if err != nil {
 				return err
+			}
+
+			if q := queryOf(payload); isSubscription(q) {
+				so.strict = strict
+				return a.gqlSubscribe(cmd.Context(), cmd, o, &so, endpoint, payload, filter, pass)
 			}
 
 			target := gqlTarget(a.session().GraphQLURL, endpoint)
@@ -190,7 +197,17 @@ func (a *app) gqlCmd() *cobra.Command {
 	f.StringVar(&item, "item", "", `implies --pick: use this "<query|mutation> <name>" instead of choosing it with fzf (for tv, editors)`)
 	f.BoolVar(&strict, "strict", false, "exit 4 when the response has GraphQL errors")
 	_ = cmd.RegisterFlagCompletionFunc("endpoint", a.endpointCompletion)
+	bindSubscribeFlags(cmd, &so)
 	return cmd
+}
+
+// queryOf is the query text of a gqlBody payload.
+func queryOf(payload string) string {
+	var r struct {
+		Query string `json:"query"`
+	}
+	_ = json.Unmarshal([]byte(payload), &r)
+	return r.Query
 }
 
 // formCmd is multipart / urlencoded POST: no JSON headers.

@@ -58,7 +58,14 @@ api json email=me@x.com n:=3 | api post /users     # build a JSON body
 api gql -e v2/user 'query { me { id } }' '.data.me'
 api get /users -t --columns id,name     # table; -r raw string; -c compact; -i headers
 api get /users -H "X-API-Key: $KEY" -Q limit=5
+api gql 'subscription { orderUpdated { id } }' .data.orderUpdated --max 5   # WebSocket, one JSON line per event
 ```
+
+A `subscription` runs over a WebSocket by itself and streams until Ctrl+C: always
+give an agent `--max N` (clean end) or `--timeout 30s` (ends with exit 28) so the command ends. Servers that read
+the token from `connection_init` need `--token-in-init`; older Apollo servers need
+`--protocol graphql-ws`. Exit `4` = the server ended it with an error, `22` = the
+upgrade was refused.
 
 Exit codes are a contract: `0` ok, `22` HTTP >= 400 (body still printed), `3` a
 `# @assert` failed, `4` GraphQL errors (`--strict`), `5` bad jq filter, `2`

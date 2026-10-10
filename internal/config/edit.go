@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/secretref"
 
 	"github.com/pelletier/go-toml/v2"
@@ -29,7 +30,7 @@ func IsSecretKey(key string) bool {
 var SettableKeys = []string{
 	"default_env",
 	"defaults.timeout", "defaults.connect_timeout", "defaults.retry", "defaults.color", "defaults.summary", "defaults.token_cache", "defaults.auto_login", "defaults.editor",
-	"env.<name>.url", "env.<name>.graphql", "env.<name>.endpoints", "env.<name>.endpoint_prefix", "env.<name>.openapi", "env.<name>.token_env", "env.<name>.headers.<Header>",
+	"env.<name>.url", "env.<name>.graphql", "env.<name>.endpoints", "env.<name>.endpoint_prefix", "env.<name>.openapi", "env.<name>.subscriptions", "env.<name>.ws_protocol", "env.<name>.ws_token_in_init", "env.<name>.token_env", "env.<name>.headers.<Header>",
 	"vars.base_url", "vars.graphql_url", "vars.env_suffix",
 	"env.<name>.login.path", "env.<name>.login.gql", "env.<name>.login.endpoint", "env.<name>.login.token_path", "env.<name>.login.vars.<name>",
 	"alias.<name>",
@@ -77,7 +78,8 @@ func setLogin(c *Config, name, field, value, key string) error {
 	default:
 		return fmt.Errorf("unknown key %q (known: login.path, login.gql, login.endpoint, login.token_path, login.vars.<name>)", key)
 	}
-	c.Env[name] = Env{URL: e.URL, GraphQL: e.GraphQL, Endpoints: e.Endpoints, EndpointPrefix: e.EndpointPrefix, OpenAPI: e.OpenAPI, TokenEnv: e.TokenEnv, Headers: e.Headers, Login: l}
+	e.Login = l // the rest of the env is kept as it is: a new Env key must not be lost here
+	c.Env[name] = e
 	return nil
 }
 
@@ -145,6 +147,22 @@ func Set(c *Config, key, value string) error {
 				return err
 			}
 			e.OpenAPI = value
+		case field == "subscriptions":
+			if err := ValidateSubscriptionsPath(value); err != nil {
+				return err
+			}
+			e.Subscriptions = value
+		case field == "ws_protocol":
+			if err := ValidateWSProtocol(value); err != nil {
+				return err
+			}
+			e.WSProtocol = value
+		case field == "ws_token_in_init":
+			b, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("ws_token_in_init must be true or false")
+			}
+			e.WSTokenInInit = &b
 		case field == "endpoints":
 			e.Endpoints = nil
 			for _, x := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' }) {
@@ -153,6 +171,9 @@ func Set(c *Config, key, value string) error {
 		case strings.HasPrefix(field, "headers.") && len(parts) == 4:
 			if e.Headers == nil {
 				e.Headers = map[string]string{}
+			}
+			if err := httpc.CheckHeader(parts[3], value); err != nil {
+				return err
 			}
 			e.Headers[parts[3]] = value
 		default:
@@ -278,6 +299,15 @@ func Get(c Config, key string) (string, bool) {
 			return e.EndpointPrefix, e.EndpointPrefix != ""
 		case "openapi":
 			return e.OpenAPI, e.OpenAPI != ""
+		case "subscriptions":
+			return e.Subscriptions, e.Subscriptions != ""
+		case "ws_protocol":
+			return e.WSProtocol, e.WSProtocol != ""
+		case "ws_token_in_init":
+			if e.WSTokenInInit == nil {
+				return "", false
+			}
+			return strconv.FormatBool(*e.WSTokenInInit), true
 		case "endpoints":
 			return strings.Join(e.Endpoints, ","), len(e.Endpoints) > 0
 		default:
@@ -369,6 +399,13 @@ func Render(scope Scope, baseURL, graphqlURL string) string {
 # endpoint_prefix = "v2/"               # "user" means v2/user for api schema
 # openapi = "/openapi.json"           # where its OpenAPI JSON lives (a path); api openapi sync uses it
 # headers = { "X-Tenant" = "local" }    # sent with every request to this env
+#   (plain headers only: tenant, version, language. An API key such as X-API-Key is a
+#   secret and is not kept here: send it per call, -H "X-API-Key: $MY_KEY")
+# subscriptions = "/graphql"            # GraphQL WebSocket path on this server, for api gql --sub (default: the graphql path)
+# ws_protocol = "graphql-transport-ws"  # or "graphql-ws" (legacy Apollo subscriptions-transport-ws)
+# ws_token_in_init = true                   # also put the token in connection_init (servers that read it there, not from a header)
+#   (GraphQL subscriptions: api gql 'subscription { orderUpdated { id } }' .data   streams one JSON per event until Ctrl+C.
+#   The WebSocket goes to this env's server only, ws:// or wss:// following the url above, and your token is sent only there.)
 
 # ── login for this project, no typing: api login --env local ───────────────
 # The password is never written here: "@keychain:NAME" refers to a secret you
@@ -422,6 +459,13 @@ const globalTemplate = `# api global config (~/.config/api/config.toml): what is
 # openapi = "/openapi.json"           # where its OpenAPI JSON lives (a path); api openapi sync uses it
 # token_env = "API_TOKEN_DEV"           # NAME (API_TOKEN_*) of the variable with the token; honoured HERE only
 # headers = { "X-Tenant" = "dev" }      # sent with every request to this env
+#   (plain headers only: tenant, version, language. An API key such as X-API-Key is a
+#   secret and is not kept here: send it per call, -H "X-API-Key: $MY_KEY")
+# subscriptions = "/graphql"            # GraphQL WebSocket path on this server, for api gql --sub (default: the graphql path)
+# ws_protocol = "graphql-transport-ws"  # or "graphql-ws" (legacy Apollo subscriptions-transport-ws)
+# ws_token_in_init = true                   # also put the token in connection_init (servers that read it there, not from a header)
+#   (GraphQL subscriptions: api gql 'subscription { orderUpdated { id } }' .data   streams one JSON per event until Ctrl+C.
+#   The WebSocket goes to this env's server only, ws:// or wss:// following the url above, and your token is sent only there.)
 
 # ── login without typing: api login --env dev ──────────────────────────────
 # Passwords are never stored here. A value starting with @ is a reference:

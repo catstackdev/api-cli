@@ -69,6 +69,23 @@ origin), so it lives longer than the shell that logged in: `api logout` removes 
 | Automatic login uses only `@keychain:` references: never `@prompt` (no surprise prompt) and never `@env:` | `resolveRefFor()` `autoLogin()` | `TestAutoLoginAcceptsOnlyKeychainReferences` |
 | `api logout` unsets this shell's token only for the env the shell is on | `logoutCmd()` | `TestLogout` |
 
+### Headers
+
+| Rule | Code | Tests |
+| ---- | ---- | ----- |
+| A header written onto the wire (from `-H`, a `.http` request or an env profile in config) has an HTTP-token name and no control character in its value, so a line break cannot start a second header; errors name the header, never its value | `CheckHeader()` `ParseHeader()` `ValidateHeaders()` | `TestParseHeaderRefusesWhatCouldStartAnotherLine` `TestHeaderErrorsNeverEchoTheValue` `TestReadRejectsMalformedHeaders` `TestSetRejectsMalformedHeaders` `TestHeaderFlagRefusesLineBreaksAndBadNames` |
+
+### GraphQL subscriptions (WebSocket)
+
+| Rule | Code | Tests |
+| ---- | ---- | ----- |
+| The upgrade request is built by `newSpec`, so your token (header and `connection_init`) goes to the active server only; an absolute endpoint on another host gets none | `gqlSubscribe()` `newSpecFor()` | `TestSubscriptionNeverSendsTheTokenToAnotherServer` |
+| A redirect on the upgrade is never followed (it would re-send the credentials) | `Subscribe()` | `TestRedirectOnUpgradeIsNeverFollowed` |
+| `env.<name>.subscriptions` is a PATH on the env's own server and `ws_protocol` one of two names, so a config file cannot choose where the token goes | `ValidateSubscriptionsPath()` `ValidateWSProtocol()` | `TestSubscriptionKeysAreValidatedAndRoundTrip` |
+| `--dry` connects to nothing and, like `--debug`, masks the token in the header and in `connection_init` and secret-looking fields | `subscribeDescription()` | `TestSubscriptionDryRunConnectsToNothingAndMasksTheToken` `TestSubscriptionDebugMasksTheTokenOnStderr` |
+| Server text in connection errors is bounded (200 characters) and one message is limited to 4 MiB, so a hostile server cannot flood the terminal or make us allocate without limit; an ordinary large event still works | `clip()` `Subscribe()` | `TestServerTextInErrorsAndMessagesAreBounded` |
+| An intentional end (server completes or closes with 1000, `--max`, Ctrl+C) is a success whatever the server does with our goodbye; `--timeout` is exit 28 | `Subscribe()` `gqlSubscribe()` | `TestACleanEndIsNeverAnError` `TestSubscriptionTimeoutIsExit28AndMaxIsAnOrdinaryEnd` |
+
 ### Interactive `api gql` (fzf + editor)
 
 | Rule | Code | Tests |

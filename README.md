@@ -152,6 +152,46 @@ curl -sS --fail-with-body --connect-timeout 10 --max-time 300 -X POST \
   https://api.test/x -H 'Authorization: Bearer abcdefghijkl…' ...
 ```
 
+### GraphQL subscriptions (WebSocket)
+
+`api gql` runs a `subscription` over a WebSocket on its own (comment lines do
+not count; there is no flag to turn it on). It prints one compact JSON line per
+event, with the same jq filter, `-t`, `-r` and `--strict` as a query, until
+Ctrl+C, the server completes it, `--max N` events or `--timeout`.
+
+```bash
+api gql 'subscription { orderUpdated { id status } }' .data.orderUpdated
+api gql -e v2/orders 'subscription($id: ID!) { order(id: $id) { status } }' -V id=7 --max 3
+api gql @sub.graphql --protocol graphql-ws            # legacy Apollo servers
+api gql 'subscription { ping }' --token-in-init --init tenant=acme   # token / params in connection_init
+api gql 'subscription { ping }' --dry                 # shows the upgrade and both messages, masked
+```
+
+- Protocols: `graphql-transport-ws` (default: graphql-ws library, Apollo Server
+  4+, Yoga, Hasura) and the legacy `graphql-ws` (`--protocol`, or `ws_protocol`
+  in config).
+- The URL is the GraphQL URL with `ws://` / `wss://` instead of `http(s)://`.
+  `env.<name>.subscriptions = "/realtime"` is the PATH of a different WebSocket
+  endpoint on that same server (never a URL, so the token cannot be aimed
+  elsewhere).
+- The token is sent exactly like for a request: in the `Authorization` header
+  of the upgrade, and only to the active server (an absolute `-e` URL on
+  another host gets none). Servers made for browsers read it from
+  `connection_init` instead: `--token-in-init` or `ws_token_in_init = true`.
+  `--init key=value` adds more fields to that payload (`@keychain:NAME` works,
+  bound secrets are checked against the server like everywhere else).
+- A redirect on the upgrade is never followed, a plain `ws://` to a non-local
+  host warns, `-k` skips certificate checks, and `--dry` / `--debug` mask the
+  token in the header and in `connection_init`.
+- Exit codes: `0` ended cleanly (the server completing it, `--max`, Ctrl+C), `4`
+  the server ended it with an error (or `--strict` and an event with `errors`),
+  `22` the upgrade was refused (401, 403...), `5` bad filter, `28` `--timeout`
+  was reached (curl's `--max-time`: use `--max N` for an ordinary end; with no
+  `--timeout` a stream has no time limit), `7/6` connect/DNS.
+- Not supported: `-o`, `--har`, `-- curl args`, `diff` (it would run on both
+  envs) and the fzf picker (it prints the `api gql` line to run). A 401 is not
+  retried with the token cache.
+
 ### Escape hatch
 
 Anything the native client does not cover goes after `--` and runs through the
@@ -437,6 +477,9 @@ endpoints = ["user", "auth"]        # completions for gql -e
 openapi = "/openapi.json"           # where its OpenAPI JSON lives (a path); `api openapi sync` uses it
 token_env = "API_TOKEN_DEV"         # NAME (API_TOKEN_*) of the variable with the token
 headers = { "X-Tenant" = "dev" }
+subscriptions = "/realtime"         # GraphQL WebSocket PATH on this server, for `api gql` subscriptions (default: the graphql path)
+ws_protocol = "graphql-ws"          # graphql-transport-ws (default) | graphql-ws (legacy)
+ws_token_in_init = true             # also send the token in connection_init
 
 [env.thien]
 url = "https://api.thien.example.com"
@@ -457,6 +500,35 @@ then built-in.
 **No secrets in config.** Tokens and passwords are not part of the schema,
 unknown keys are rejected (the error names the key, never the value), and
 `token_env` may only name an `API_TOKEN_*` variable.
+
+### Headers
+
+| Where                        | Use it for                                                  |
+| ---------------------------- | ----------------------------------------------------------- |
+| `-H "Name: value"`           | one call; wins over the env's header of the same name       |
+| `[env.x] headers = { ... }`  | plain headers every call to that env needs (`X-Tenant`, `Accept-Language`, an API version); `api config set env.x.headers.NAME value` writes one |
+| a `.http` request            | lines after the request line; `{{variables}}` are expanded  |
+
+Order: the env's headers, then `-H`, then the token (`Authorization`, only if
+you set none), then the `Accept: application/json` default. Names match
+case-insensitively. A header name must be an HTTP token and no value may hold a
+control character (a line break would start another header): `-H`, `.http`
+requests and the config all go through `httpc.CheckHeader`, the config is
+refused on read and in `config set`, and the error names the header, never its
+value.
+
+**An API key header (`X-API-Key`, `X-Auth-Token`, ...) is a secret, so it is
+not kept in config** (`config set` refuses it, `config validate` warns). Pass it
+per call, from your own environment:
+
+```bash
+api get /users -H "X-API-Key: $MY_KEY"
+# once per shell, if you use it all day:
+myapi() { api "$@" -H "X-API-Key: $MY_KEY"; }
+```
+
+In a `.http` file use `{{$env API_MY_KEY}}` (it reads `API_*` variables only).
+`--dry`, `--debug` and HAR export mask such headers.
 
 **A project `.api.toml` cannot route your tokens.** It may come from a cloned
 repo, so it chooses _where_ requests go but never _which of your secrets_ go

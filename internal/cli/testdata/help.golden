@@ -760,6 +760,7 @@ Examples:
   api gql @queries/me.graphql
   echo 'query { me { id } }' | api gql
   api gql                   # on a terminal: pick the endpoint and the query with fzf
+  api gql 'subscription { orderUpdated { id status } }' .data.orderUpdated   # WebSocket: one JSON line per event
 
 Flags:
       --columns strings            with --table: the columns to show, in order (a,b,c)
@@ -771,12 +772,15 @@ Flags:
       --har-secrets                with --har: keep tokens, cookies and passwords in the file (dangerous to share)
   -H, --header stringArray         extra header, "Name: value" (repeatable)
   -i, --include                    print the status line and response headers
+      --init stringArray           subscriptions: connection_init payload key=value or key:=json (repeatable; values may be @keychain:NAME)
   -k, --insecure                   skip TLS certificate verification
       --item string                implies --pick: use this "<query|mutation> <name>" instead of choosing it with fzf (for tv, editors)
+      --max int                    subscriptions: stop after N events (0 = until Ctrl+C or the server completes)
       --no-auth                    do not send the bearer token
       --no-save api again          with --pick: do not keep the request under .api/requests/ (so api again cannot repeat it)
   -o, --output string              write the body to a file
       --pick                       choose the endpoint and the query with fzf, edit the generated query, then run it (default with no query on a terminal)
+      --protocol string            subscription protocol: graphql-transport-ws (default) or graphql-ws (legacy Apollo); env.<name>.ws_protocol
   -Q, --query stringArray          query parameter key=value (repeatable)
   -R, --raw-body                   print the body untouched: no filter, no pretty-print
   -r, --raw-output                 print string results without quotes (jq -r)
@@ -785,6 +789,7 @@ Flags:
       --summary                    print a status/type/time/size footer to stderr (env API_SUMMARY)
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
+      --token-in-init              subscriptions: also send the token in connection_init, for servers that read it there; env.<name>.ws_token_in_init
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -V, --var stringArray            variable key=value or key:=json (repeatable)
   -v, --verbose                    print request and response headers to stderr
