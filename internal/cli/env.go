@@ -10,6 +10,7 @@ import (
 
 	"cybercat/api/internal/config"
 	"cybercat/api/internal/envfile"
+	"cybercat/api/internal/envmap"
 	"cybercat/api/internal/session"
 	"cybercat/api/internal/ui"
 
@@ -209,7 +210,7 @@ func (a *app) envLoad(args []string, emit bool) error {
 			keys = append(keys, e.Key)
 		}
 	}
-	stmts, notes := envMapping(keys, a.cfg.Vars)
+	stmts, notes := envmap.Mapping(keys, a.cfg.Vars)
 	for _, n := range notes {
 		a.say("  " + n)
 	}
@@ -217,7 +218,7 @@ func (a *app) envLoad(args []string, emit bool) error {
 		session.Quote(file), session.Export(session.EnvName, name),
 		session.EnvFrom, session.Quote("file:"+filepath.Base(file)))
 	if len(stmts) > 0 {
-		line += "; " + joinStmts(stmts)
+		line += "; " + envmap.Join(stmts)
 	}
 	fmt.Fprintln(a.io.Out, line)
 	return nil

@@ -1,4 +1,11 @@
-package cli
+// Package envmap decides how `api env load` copies a project's own URL variables
+// (VITE_GRAPHQL_URL, REACT_APP_API_URL, ...) into API_BASE_URL / API_GRAPHQL_URL.
+//
+// It works on variable NAMES only and returns shell statements that refer to a
+// variable by name (`API_GRAPHQL_URL="$VITE_..."`): values never pass through Go,
+// and a name from config is validated as a shell identifier elsewhere, because it
+// ends up in eval'd code.
+package envmap
 
 import (
 	"fmt"
@@ -35,14 +42,14 @@ func firstPresent(have map[string]bool, candidates []string) string {
 	return ""
 }
 
-// envMapping returns the shell statements (and notes for the user) that copy a
+// Mapping returns the shell statements (and notes for the user) that copy a
 // project's own URL variables into API_BASE_URL / API_GRAPHQL_URL after its
 // .env file has been sourced. keys are the NAMES defined in that file; values
 // stay in the shell: they are only referenced here, never read.
 //
 // A [vars] entry in config wins over detection. When only a GraphQL URL ending
 // in /graphql exists, the base URL is derived from it.
-func envMapping(keys []string, v config.Vars) (stmts, notes []string) {
+func Mapping(keys []string, v config.Vars) (stmts, notes []string) {
 	have := map[string]bool{}
 	for _, k := range keys {
 		have[k] = true
@@ -86,9 +93,9 @@ func envMapping(keys []string, v config.Vars) (stmts, notes []string) {
 	return stmts, notes
 }
 
-// detectURLVars reports which variables of the given names would be used as the
+// DetectURLVars reports which variables of the given names would be used as the
 // GraphQL / base URL ("" when none, or when the API_* name itself is defined).
-func detectURLVars(keys []string) (baseURL, graphqlURL string) {
+func DetectURLVars(keys []string) (baseURL, graphqlURL string) {
 	have := map[string]bool{}
 	for _, k := range keys {
 		have[k] = true
@@ -102,4 +109,5 @@ func detectURLVars(keys []string) (baseURL, graphqlURL string) {
 	return baseURL, graphqlURL
 }
 
-func joinStmts(stmts []string) string { return strings.Join(stmts, "; ") }
+// Join makes the statements one line for the shell to eval.
+func Join(stmts []string) string { return strings.Join(stmts, "; ") }

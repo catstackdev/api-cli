@@ -38,7 +38,6 @@ internal/cli/             cobra commands; one file per concern
   tokencache.go logout.go token cache, 401 recovery, auto login, api logout
   run.go run_capture.go   .http runner; run_capture.go binds `internal/capture` to the app
   run_assert.go             `# @assert` evaluation for `run` (exit 3)
-  env_map.go                `env load` URL-variable mapping (gotcha 18)
   pick.go                   fzf selection shared by the pickers
   table.go                  JSON result -> table (`--table`); rendering is in internal/ui
   schema.go schema_sync.go  introspection commands; `schema sync` (cache writer)
@@ -68,6 +67,7 @@ internal/session/         API_* env + shell quoting (Quote, Export, Unset)
 internal/schema/          GraphQL introspection: signatures, index lines, embedded preview.jq
 internal/jwt/             unverified exp/iat reader (display and cache expiry only)
 internal/assert/          `# @assert` evaluation (see gotcha 41)
+internal/envmap/          `env load` URL-variable mapping: names in, shell statements out (gotcha 18)
 internal/capture/         `{{name.response.*}}` references: parse, dependencies, the key/index body walker
                           (see gotcha 36; it is app-independent, `run_capture.go` holds the app-bound part)
 internal/curlimport/      curl command -> .http request (tokenise, mask secrets; see gotcha 43)
@@ -187,7 +187,7 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     stdout unless `--keep-values`, and secret-looking keys / credential URLs
     stay blank even then.
 
-18. **`env load` maps a project's URL variables** (`env_map.go`) by emitting
+18. **`env load` maps a project's URL variables** (`internal/envmap`) by emitting
     shell statements that reference the variable by NAME
     (`API_GRAPHQL_URL="$VITE_..."`): values never pass through Go. `[vars]`
     accepts URL variable names only, validated as shell identifiers (they end up

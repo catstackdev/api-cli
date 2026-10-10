@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"cybercat/api/internal/config"
+	"cybercat/api/internal/envmap"
 	"cybercat/api/internal/session"
 	"cybercat/api/internal/ui"
 
@@ -248,7 +249,7 @@ func (a *app) configInitCmd() *cobra.Command {
 						keys = append(keys, src.Keys()...)
 					}
 				}
-				if base, gql := detectURLVars(keys); base != "" || gql != "" {
+				if base, gql := envmap.DetectURLVars(keys); base != "" || gql != "" {
 					text = config.Render(config.Project, base, gql)
 					if gql != "" {
 						a.say("  [vars] graphql_url = " + gql + " (detected in your .env files)")
