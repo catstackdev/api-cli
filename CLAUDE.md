@@ -51,7 +51,8 @@ internal/ui/              ALL terminal presentation: colour decision, styled
 internal/httpc/           Spec -> request / curl args / client / trace
 internal/gqlws/           GraphQL subscription over WebSocket (graphql-transport-ws and legacy graphql-ws)
 internal/render/          body printing, gojq filter, JSON colour, Decode
-internal/config/          global + project TOML, merge, Set/Get, Lint, schema.json
+internal/config/          global + project TOML, merge, Lint, schema.json; keys.go is the registry of
+                          settable keys (Set, Get, in-place edit and SettableKeys all read it; gotcha 46)
                           (JSON Schema; a test keeps it equal to the parser)
 internal/envfile/         .env KEY NAMES only (example / check)
 internal/jsondiff/        structural JSON diff with jq-style paths
@@ -402,11 +403,23 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     rules (gotchas 10, 28, 33) apply unchanged; never read `s.Token` there. The
     token goes into `connection_init` only from the Authorization header the Spec
     already carries. A subscription is detected from the query text
-    (`isSubscription`), upgrades are never redirected, and `env.<name>.subscriptions`
+    (`gqlquery.IsSubscription`), upgrades are never redirected, and `env.<name>.subscriptions`
     is a PATH (`ValidateSubscriptionsPath`). Do not add a config key whose name
     contains `auth`, `pass`, `secret`, `key` or `token` as a whole word: `IsSecretKey`
     makes `config set` refuse it (`ws_init_auth` was renamed `ws_token_in_init` for that).
-    `setLogin` keeps the rest of the env; do not rebuild an `Env` field by field.
+    A login key keeps the rest of the env (`bindLogin` in `keys.go`); do not rebuild an
+    `Env` field by field.
+
+46. **Settable config keys live in ONE table** (`internal/config/keys.go`): `Set`,
+    `Get`, the in-place text edit (`SetInFile`) and `SettableKeys` all derive from it.
+    Adding a key = the struct field + toml tag, ONE row in `keys`, the read-side check
+    in `ParseText`, the overlay in `Merge`, and `schema.json`. Each row declares its
+    `fileScope`, and the zero value is `globalFile` (honoured from the global config
+    only): being project-settable must be said, never assumed. What a project file may
+    override is still hand-written in `LoadWith` and `Merge` so it reads in one place;
+    `TestWhatAProjectFileMayOverride` checks the table against that behaviour in both
+    directions, and `TestGlobalOnlyKeysAreExactlyThese` spells the four global-only keys
+    out on purpose. `Get` does not serve `login.*` keys (unchanged behaviour).
 
 ## Output rules (internal/ui)
 

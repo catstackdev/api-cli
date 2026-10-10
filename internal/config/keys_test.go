@@ -22,49 +22,44 @@ type keyCase struct {
 
 	// peek reads the value back for keys Get does not serve (login.*).
 	peek func(Config) string
-
-	// projectSets is whether a value in a PROJECT file reaches the merged config
-	// when no global file defines the env. false = honoured from the global file
-	// only. The zero value is the safe one: a key nobody classified is global-only.
-	projectSets bool
 }
 
 func login(c Config) *Login { return c.Env["dev"].Login }
 
 var keyCases = []keyCase{
-	{pattern: "default_env", key: "default_env", value: "dev", want: "dev", projectSets: true},
+	{pattern: "default_env", key: "default_env", value: "dev", want: "dev"},
 
-	{pattern: "defaults.timeout", key: "defaults.timeout", value: "30s", want: "30s", bad: "soon", projectSets: true},
-	{pattern: "defaults.connect_timeout", key: "defaults.connect_timeout", value: "5s", want: "5s", bad: "0", projectSets: true},
-	{pattern: "defaults.retry", key: "defaults.retry", value: "3", want: "3", bad: "-1", projectSets: true},
-	{pattern: "defaults.color", key: "defaults.color", value: "never", want: "never", bad: "pink", projectSets: true},
-	{pattern: "defaults.summary", key: "defaults.summary", value: "true", want: "true", bad: "maybe", projectSets: true},
+	{pattern: "defaults.timeout", key: "defaults.timeout", value: "30s", want: "30s", bad: "soon"},
+	{pattern: "defaults.connect_timeout", key: "defaults.connect_timeout", value: "5s", want: "5s", bad: "0"},
+	{pattern: "defaults.retry", key: "defaults.retry", value: "3", want: "3", bad: "-1"},
+	{pattern: "defaults.color", key: "defaults.color", value: "never", want: "never", bad: "pink"},
+	{pattern: "defaults.summary", key: "defaults.summary", value: "true", want: "true", bad: "maybe"},
 	{pattern: "defaults.token_cache", key: "defaults.token_cache", value: "true", want: "true", bad: "maybe"},
 	{pattern: "defaults.auto_login", key: "defaults.auto_login", value: "true", want: "true", bad: "maybe"},
 	{pattern: "defaults.editor", key: "defaults.editor", value: "nvim", want: "nvim", bad: "a\nb"},
 
-	{pattern: "env.<name>.url", key: "env.dev.url", value: "https://dev.example", want: "https://dev.example", projectSets: true},
-	{pattern: "env.<name>.graphql", key: "env.dev.graphql", value: "https://dev.example/graphql", want: "https://dev.example/graphql", projectSets: true},
-	{pattern: "env.<name>.endpoints", key: "env.dev.endpoints", value: "user,auth", want: "user,auth", projectSets: true},
-	{pattern: "env.<name>.endpoint_prefix", key: "env.dev.endpoint_prefix", value: "v2/", want: "v2/", bad: "../x", projectSets: true},
-	{pattern: "env.<name>.openapi", key: "env.dev.openapi", value: "/openapi.json", want: "/openapi.json", bad: "https://evil.example/x", projectSets: true},
-	{pattern: "env.<name>.subscriptions", key: "env.dev.subscriptions", value: "/graphql", want: "/graphql", bad: "wss://evil.example", projectSets: true},
-	{pattern: "env.<name>.ws_protocol", key: "env.dev.ws_protocol", value: "graphql-ws", want: "graphql-ws", bad: "other", projectSets: true},
-	{pattern: "env.<name>.ws_token_in_init", key: "env.dev.ws_token_in_init", value: "true", want: "true", bad: "maybe", projectSets: true},
+	{pattern: "env.<name>.url", key: "env.dev.url", value: "https://dev.example", want: "https://dev.example"},
+	{pattern: "env.<name>.graphql", key: "env.dev.graphql", value: "https://dev.example/graphql", want: "https://dev.example/graphql"},
+	{pattern: "env.<name>.endpoints", key: "env.dev.endpoints", value: "user,auth", want: "user,auth"},
+	{pattern: "env.<name>.endpoint_prefix", key: "env.dev.endpoint_prefix", value: "v2/", want: "v2/", bad: "../x"},
+	{pattern: "env.<name>.openapi", key: "env.dev.openapi", value: "/openapi.json", want: "/openapi.json", bad: "https://evil.example/x"},
+	{pattern: "env.<name>.subscriptions", key: "env.dev.subscriptions", value: "/graphql", want: "/graphql", bad: "wss://evil.example"},
+	{pattern: "env.<name>.ws_protocol", key: "env.dev.ws_protocol", value: "graphql-ws", want: "graphql-ws", bad: "other"},
+	{pattern: "env.<name>.ws_token_in_init", key: "env.dev.ws_token_in_init", value: "true", want: "true", bad: "maybe"},
 	{pattern: "env.<name>.token_env", key: "env.dev.token_env", value: "API_TOKEN_DEV", want: "API_TOKEN_DEV", bad: "HOME"},
-	{pattern: "env.<name>.headers.<Header>", key: "env.dev.headers.X-Tenant", value: "dev", want: "dev", bad: "a\nb", projectSets: true},
+	{pattern: "env.<name>.headers.<Header>", key: "env.dev.headers.X-Tenant", value: "dev", want: "dev", bad: "a\nb"},
 
-	{pattern: "vars.base_url", key: "vars.base_url", value: "VITE_API_URL", want: "VITE_API_URL", bad: "a b", projectSets: true},
-	{pattern: "vars.graphql_url", key: "vars.graphql_url", value: "VITE_GRAPHQL_URL", want: "VITE_GRAPHQL_URL", bad: "a b", projectSets: true},
-	{pattern: "vars.env_suffix", key: "vars.env_suffix", value: "dev", want: "dev", bad: "../x", projectSets: true},
+	{pattern: "vars.base_url", key: "vars.base_url", value: "VITE_API_URL", want: "VITE_API_URL", bad: "a b"},
+	{pattern: "vars.graphql_url", key: "vars.graphql_url", value: "VITE_GRAPHQL_URL", want: "VITE_GRAPHQL_URL", bad: "a b"},
+	{pattern: "vars.env_suffix", key: "vars.env_suffix", value: "dev", want: "dev", bad: "../x"},
 
-	{pattern: "env.<name>.login.path", key: "env.dev.login.path", value: "/auth/login", peek: func(c Config) string { return login(c).Path }, projectSets: true},
-	{pattern: "env.<name>.login.gql", key: "env.dev.login.gql", value: "mutation { login }", peek: func(c Config) string { return login(c).GQL }, projectSets: true},
-	{pattern: "env.<name>.login.endpoint", key: "env.dev.login.endpoint", value: "v2/auth", peek: func(c Config) string { return login(c).Endpoint }, projectSets: true},
-	{pattern: "env.<name>.login.token_path", key: "env.dev.login.token_path", value: ".data.token", bad: "data.token", peek: func(c Config) string { return login(c).TokenPath }, projectSets: true},
-	{pattern: "env.<name>.login.vars.<name>", key: "env.dev.login.vars.input.username", value: "me@x.com", peek: func(c Config) string { return login(c).Vars["input.username"] }, projectSets: true},
+	{pattern: "env.<name>.login.path", key: "env.dev.login.path", value: "/auth/login", peek: func(c Config) string { return login(c).Path }},
+	{pattern: "env.<name>.login.gql", key: "env.dev.login.gql", value: "mutation { login }", peek: func(c Config) string { return login(c).GQL }},
+	{pattern: "env.<name>.login.endpoint", key: "env.dev.login.endpoint", value: "v2/auth", peek: func(c Config) string { return login(c).Endpoint }},
+	{pattern: "env.<name>.login.token_path", key: "env.dev.login.token_path", value: ".data.token", bad: "data.token", peek: func(c Config) string { return login(c).TokenPath }},
+	{pattern: "env.<name>.login.vars.<name>", key: "env.dev.login.vars.input.username", value: "me@x.com", peek: func(c Config) string { return login(c).Vars["input.username"] }},
 
-	{pattern: "alias.<name>", key: "alias.me", value: "get /me", want: "get /me", projectSets: true},
+	{pattern: "alias.<name>", key: "alias.me", value: "get /me", want: "get /me"},
 }
 
 func readBack(c Config, k keyCase) (string, bool) {
@@ -217,7 +212,20 @@ func TestEveryKeyCanBeEditedInPlace(t *testing.T) {
 	}
 }
 
-// What a PROJECT file (possibly from a cloned repo) can set, key by key.
+func scopeOf(t *testing.T, pattern string) fileScope {
+	t.Helper()
+	for _, k := range keys {
+		if k.pattern == pattern {
+			return k.scope
+		}
+	}
+	t.Fatalf("no key %q in the registry", pattern)
+	return globalFile
+}
+
+// What a PROJECT file (possibly from a cloned repo) can set, key by key. The scope
+// comes from the registry, so a key declared project-settable that Merge does not
+// copy fails here, and so does a key declared global-only that gets through.
 func TestWhatAProjectFileMayOverride(t *testing.T) {
 	for _, k := range keyCases {
 		t.Run(k.pattern, func(t *testing.T) {
@@ -232,7 +240,7 @@ func TestWhatAProjectFileMayOverride(t *testing.T) {
 				t.Fatalf("Load: %v", err)
 			}
 			got, ok := readBack(l.Config, k)
-			if k.projectSets {
+			if scopeOf(t, k.pattern) == anyFile {
 				if !ok || got != expected(k) {
 					t.Fatalf("a project file should be able to set %s: read %q (set=%v)", k.key, got, ok)
 				}
@@ -338,6 +346,44 @@ func TestRefusalMessages(t *testing.T) {
 		err := Set(&cfg, c.key, c.value)
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("Set(%q, %q): %v\n  want it to contain %q", c.key, c.value, err, c.want)
+		}
+	}
+}
+
+// Which keys a project file may NOT set is a security decision (gotchas 10 and 33):
+// it is spelled out here so that loosening one means editing this list on purpose.
+func TestGlobalOnlyKeysAreExactlyThese(t *testing.T) {
+	want := map[string]bool{
+		"defaults.token_cache": true, "defaults.auto_login": true, "defaults.editor": true,
+		"env.<name>.token_env": true,
+	}
+	for _, k := range keys {
+		if (k.scope == globalFile) != want[k.pattern] {
+			t.Errorf("%s: global-only = %v, expected %v", k.pattern, k.scope == globalFile, want[k.pattern])
+		}
+		delete(want, k.pattern)
+	}
+	for p := range want {
+		t.Errorf("%s is listed as global-only but is not a key", p)
+	}
+}
+
+// A key declared without a scope must not become project-settable by accident.
+func TestAnUnclassifiedKeyIsGlobalOnly(t *testing.T) {
+	if (key{}).scope != globalFile {
+		t.Fatal("the zero scope must be the restrictive one")
+	}
+}
+
+func TestRegistryIsConsistent(t *testing.T) {
+	seen := map[string]bool{}
+	for _, k := range keys {
+		if seen[k.pattern] {
+			t.Errorf("%s is declared twice", k.pattern)
+		}
+		seen[k.pattern] = true
+		if k.login() != strings.Contains(k.pattern, ".login.") || (k.login() && !k.unreadable) {
+			t.Errorf("%s: login keys are judged by their own rules and are not readable", k.pattern)
 		}
 	}
 }

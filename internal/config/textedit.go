@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -132,107 +131,6 @@ func tomlArray(items []string) string {
 	return "[" + strings.Join(q, ", ") + "]"
 }
 
-// plan maps a settable key to the edits that realise it in a file.
-func plan(key string, old, want Config) (edits []edit, drop *inlineDrop, err error) {
-	parts := strings.Split(key, ".")
-	str := func(table, k, v string) []edit { return []edit{{table, k, tomlString(v)}} }
-	switch {
-	case key == "default_env":
-		return str("", "default_env", want.DefaultEnv), nil, nil
-	case parts[0] == "defaults" && len(parts) == 2:
-		d := want.Defaults
-		switch parts[1] {
-		case "timeout":
-			return str("defaults", "timeout", d.Timeout), nil, nil
-		case "connect_timeout":
-			return str("defaults", "connect_timeout", d.ConnectTimeout), nil, nil
-		case "color":
-			return str("defaults", "color", d.Color), nil, nil
-		case "retry":
-			return []edit{{"defaults", "retry", strconv.Itoa(*d.Retry)}}, nil, nil
-		case "summary":
-			return []edit{{"defaults", "summary", strconv.FormatBool(*d.Summary)}}, nil, nil
-		case "editor":
-			return str("defaults", "editor", d.Editor), nil, nil
-		case "token_cache":
-			return []edit{{"defaults", "token_cache", strconv.FormatBool(*d.TokenCache)}}, nil, nil
-		case "auto_login":
-			return []edit{{"defaults", "auto_login", strconv.FormatBool(*d.AutoLogin)}}, nil, nil
-		}
-	case parts[0] == "vars" && len(parts) == 2:
-		v := want.Vars
-		switch parts[1] {
-		case "base_url":
-			return str("vars", "base_url", v.BaseURL), nil, nil
-		case "graphql_url":
-			return str("vars", "graphql_url", v.GraphQLURL), nil, nil
-		case "env_suffix":
-			return str("vars", "env_suffix", v.EnvSuffix), nil, nil
-		}
-	case parts[0] == "alias" && len(parts) == 2:
-		return str("alias", parts[1], want.Alias[parts[1]]), nil, nil
-	case parts[0] == "env" && len(parts) >= 3:
-		name := parts[1]
-		table := "env." + name
-		e := want.Env[name]
-		field := strings.Join(parts[2:], ".")
-		switch field {
-		case "url":
-			return str(table, "url", e.URL), nil, nil
-		case "graphql":
-			return str(table, "graphql", e.GraphQL), nil, nil
-		case "token_env":
-			return str(table, "token_env", e.TokenEnv), nil, nil
-		case "endpoint_prefix":
-			return str(table, "endpoint_prefix", e.EndpointPrefix), nil, nil
-		case "openapi":
-			return str(table, "openapi", e.OpenAPI), nil, nil
-		case "subscriptions":
-			return str(table, "subscriptions", e.Subscriptions), nil, nil
-		case "ws_protocol":
-			return str(table, "ws_protocol", e.WSProtocol), nil, nil
-		case "ws_token_in_init":
-			return []edit{{table, "ws_token_in_init", strconv.FormatBool(*e.WSTokenInInit)}}, nil, nil
-		case "endpoints":
-			return []edit{{table, "endpoints", tomlArray(e.Endpoints)}}, nil, nil
-		}
-		if parts[2] == "headers" && len(parts) == 4 {
-			sub := table + ".headers"
-			d := &inlineDrop{table: table, key: "headers"}
-			for h, v := range old.Env[name].Headers {
-				d.readd = append(d.readd, edit{sub, h, tomlString(v)})
-			}
-			return []edit{{sub, parts[3], tomlString(e.Headers[parts[3]])}}, d, nil
-		}
-		if parts[2] == "login" && len(parts) >= 4 && e.Login != nil {
-			ltable := table + ".login"
-			lf := strings.Join(parts[3:], ".")
-			switch lf {
-			case "path":
-				return str(ltable, "path", e.Login.Path), nil, nil
-			case "gql":
-				return str(ltable, "gql", e.Login.GQL), nil, nil
-			case "endpoint":
-				return str(ltable, "endpoint", e.Login.Endpoint), nil, nil
-			case "token_path":
-				return str(ltable, "token_path", e.Login.TokenPath), nil, nil
-			}
-			if strings.HasPrefix(lf, "vars.") {
-				vk := strings.TrimPrefix(lf, "vars.")
-				sub := ltable + ".vars"
-				d := &inlineDrop{table: ltable, key: "vars"}
-				if ol := old.Env[name].Login; ol != nil {
-					for k, v := range ol.Vars {
-						d.readd = append(d.readd, edit{sub, k, tomlString(v)})
-					}
-				}
-				return []edit{{sub, vk, tomlString(e.Login.Vars[vk])}}, d, nil
-			}
-		}
-	}
-	return nil, nil, fmt.Errorf("no in-place edit for %q", key)
-}
-
 func editText(text, key string, old, want Config) (string, error) {
 	eol := "\n"
 	if strings.Contains(text, "\r\n") {
@@ -242,7 +140,7 @@ func editText(text, key string, old, want Config) (string, error) {
 	if n := len(lines); n > 0 && lines[n-1] == "" {
 		lines = lines[:n-1]
 	}
-	edits, drop, err := plan(key, old, want)
+	edits, drop, err := planFor(key, old, want)
 	if err != nil {
 		return "", err
 	}
