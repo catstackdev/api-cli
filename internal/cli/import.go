@@ -19,9 +19,7 @@ import (
 // credential and never changes the session, so it cannot conflict with
 // `env load` / `env use`.
 func (a *app) importCmd() *cobra.Command {
-	var out string
-	var minimal bool
-	var keepHeaders []string
+	f := &importFlags{}
 	cmd := &cobra.Command{
 		Use:   "import [curl command | -]",
 		Short: "Convert a copied curl command into a .http request (prints; sends nothing)",
@@ -52,64 +50,81 @@ What it does:
 It refuses what would let pasted text change the file's structure (line breaks,
 {{ ... }}), pipes and redirects, and flags it cannot translate (-F, @file).`,
 		Args: cobra.ArbitraryArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			input, err := a.importInput(args)
-			if err != nil {
-				return err
-			}
-			req, err := curlimport.Parse(input)
-			if err != nil {
-				return &ExitError{Code: exitUsage, Msg: "✗ " + err.Error()}
-			}
-			s := a.session()
-			ctx := curlimport.Context{Base: s.BaseURL, GraphQL: s.GraphQLURL}
-			ctx.Minimal = minimal
-			ctx.Keep = map[string]bool{}
-			for _, h := range keepHeaders {
-				ctx.Keep[strings.ToLower(strings.TrimSpace(h))] = true
-			}
-			// a header the matching env profile already sends is not needed here
-			ctx.Redundant = map[string]string{}
-			dest := origin(req.URL)
-			for name, p := range a.cfg.Env {
-				if dest != "" && origin(p.URL) == dest {
-					ctx.EnvNames = append(ctx.EnvNames, name)
-					for k, v := range p.Headers {
-						ctx.Redundant[strings.ToLower(k)] = v
-					}
-				}
-			}
-			sort.Strings(ctx.EnvNames)
-			res, err := curlimport.Render(req, ctx)
-			if err != nil {
-				return &ExitError{Code: exitUsage, Msg: "✗ " + err.Error()}
-			}
-			if out == "" {
-				fmt.Fprint(a.io.Out, ui.HTTP(res.HTTP, a.colorOut(), func(b string) string {
-					return string(render.Colorize([]byte(b), render.PaletteFromEnv()))
-				}))
-				return nil
-			}
-			name, added, err := appendHTTP(out, res.HTTP)
-			if err != nil {
-				return &ExitError{Code: exitGeneric, Msg: "✗ " + err.Error()}
-			}
-			if added {
-				a.say("✓ appended to " + out + " as \"" + name + "\"")
-			} else {
-				a.say("✓ already in " + out + " as \"" + name + "\" (nothing added)")
-			}
-			for _, v := range res.Vars {
-				a.say("  needs " + v + " in your shell when you run it")
-			}
-			a.say("  run it: api run " + shellWord(out) + " " + shellWord(name))
-			return nil
-		},
+		RunE: func(cmd *cobra.Command, args []string) error { return a.importCurl(args, f) },
 	}
-	cmd.Flags().BoolVar(&minimal, "minimal", false, "also drop headers that are not recognised (keep only what is known to matter)")
-	cmd.Flags().StringSliceVar(&keepHeaders, "keep", nil, "keep these headers even if they would be dropped (comma separated)")
-	cmd.Flags().StringVar(&out, "out", "", "append the request to this .http file (created if missing, never overwritten)")
+	cmd.Flags().BoolVar(&f.minimal, "minimal", false, "also drop headers that are not recognised (keep only what is known to matter)")
+	cmd.Flags().StringSliceVar(&f.keep, "keep", nil, "keep these headers even if they would be dropped (comma separated)")
+	cmd.Flags().StringVar(&f.out, "out", "", "append the request to this .http file (created if missing, never overwritten)")
 	return cmd
+}
+
+// importFlags are the options of `api import`.
+type importFlags struct {
+	out     string
+	minimal bool
+	keep    []string
+}
+
+// importCurl converts the pasted curl command and prints it or appends it to a file.
+func (a *app) importCurl(args []string, f *importFlags) error {
+	input, err := a.importInput(args)
+	if err != nil {
+		return err
+	}
+	req, err := curlimport.Parse(input)
+	if err != nil {
+		return &ExitError{Code: exitUsage, Msg: "✗ " + err.Error()}
+	}
+	ctx := a.importContext(req, f)
+	res, err := curlimport.Render(req, ctx)
+	if err != nil {
+		return &ExitError{Code: exitUsage, Msg: "✗ " + err.Error()}
+	}
+	if f.out == "" {
+		fmt.Fprint(a.io.Out, ui.HTTP(res.HTTP, a.colorOut(), func(b string) string {
+			return string(render.Colorize([]byte(b), render.PaletteFromEnv()))
+		}))
+		return nil
+	}
+	name, added, err := appendHTTP(f.out, res.HTTP)
+	if err != nil {
+		return &ExitError{Code: exitGeneric, Msg: "✗ " + err.Error()}
+	}
+	if added {
+		a.say("✓ appended to " + f.out + " as \"" + name + "\"")
+	} else {
+		a.say("✓ already in " + f.out + " as \"" + name + "\" (nothing added)")
+	}
+	for _, v := range res.Vars {
+		a.say("  needs " + v + " in your shell when you run it")
+	}
+	a.say("  run it: api run " + shellWord(f.out) + " " + shellWord(name))
+	return nil
+}
+
+// importContext tells the converter what the session and the config already
+// provide, so the request does not repeat it.
+func (a *app) importContext(req curlimport.Request, f *importFlags) curlimport.Context {
+	s := a.session()
+	ctx := curlimport.Context{Base: s.BaseURL, GraphQL: s.GraphQLURL}
+	ctx.Minimal = f.minimal
+	ctx.Keep = map[string]bool{}
+	for _, h := range f.keep {
+		ctx.Keep[strings.ToLower(strings.TrimSpace(h))] = true
+	}
+	// a header the matching env profile already sends is not needed here
+	ctx.Redundant = map[string]string{}
+	dest := origin(req.URL)
+	for name, p := range a.cfg.Env {
+		if dest != "" && origin(p.URL) == dest {
+			ctx.EnvNames = append(ctx.EnvNames, name)
+			for k, v := range p.Headers {
+				ctx.Redundant[strings.ToLower(k)] = v
+			}
+		}
+	}
+	sort.Strings(ctx.EnvNames)
+	return ctx
 }
 
 // importInput is the curl text: the arguments joined, or stdin for no argument

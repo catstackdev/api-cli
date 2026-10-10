@@ -43,133 +43,165 @@ With no endpoint, the env's "endpoints" from the config are used. Names become
 file names, so only letters, digits, _ - . are accepted (a config file cannot
 make this write outside the cache). Needs a login: this sends your token.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			names := args
-			if len(names) == 0 {
-				names = a.schemaProfile().Endpoints
-			}
-			if len(names) == 0 {
-				return &ExitError{Code: exitUsage, Msg: "✗ no endpoints: name them, or set endpoints = [...] under [env.<name>] in your config"}
-			}
-
-			type job struct {
-				label string
-				spec  httpc.Spec
-			}
-			var jobs []job
-			seen := map[string]bool{}
-			for _, n := range names {
-				label, ok := schemaLabel(n)
-				if !ok {
-					a.say(fmt.Sprintf("✗ %s (skipped: not a usable endpoint name)", n))
-					continue
-				}
-				if seen[label] {
-					continue
-				}
-				seen[label] = true
-				body, err := gqlBody(schema.SchemaQuery, "{}")
-				if err != nil {
-					return err
-				}
-				// specs are built here, one at a time: building one reads config and
-				// may print a warning; only the network calls run concurrently
-				spec, err := a.newSpec("POST", gqlTarget(a.session().GraphQLURL, schemaEndpoint(a.effectivePrefix(prefix), n)), o)
-				if err != nil {
-					return err
-				}
-				setJSONBody(&spec, body)
-				jobs = append(jobs, job{label, spec})
-			}
-			if o.dry {
-				for _, j := range jobs {
-					fmt.Fprintln(a.io.Out, a.curlLine(j.spec, nil))
-				}
-				return nil
-			}
-
-			cache := a.ugqlCacheDir()
-			if cache == "" {
-				return &ExitError{Code: exitGeneric, Msg: "✗ no server to key the cache by: `api env load <suffix>`, `api env use <name>` or --base/--env first"}
-			}
-			if err := os.MkdirAll(cache, 0o755); err != nil {
-				return err
-			}
-
-			results := make(chan syncResult)
-			sem := make(chan struct{}, 6)
-			var wg sync.WaitGroup
-			for _, j := range jobs {
-				wg.Add(1)
-				go func(j job) {
-					defer wg.Done()
-					sem <- struct{}{}
-					defer func() { <-sem }()
-					results <- fetchSchema(cmd.Context(), j.label, j.spec, o.retry)
-				}(j)
-			}
-			go func() { wg.Wait(); close(results) }()
-
-			fetched := 0
-			for r := range results {
-				if r.err != "" {
-					a.say(fmt.Sprintf("✗ %s (skipped: %s)", r.label, r.err))
-					continue
-				}
-				if err := writeFileAtomic(filepath.Join(cache, r.label+".json"), r.data, 0o644); err != nil {
-					a.say(fmt.Sprintf("✗ %s (skipped: %v)", r.label, err))
-					continue
-				}
-				fetched++
-				a.say(fmt.Sprintf("✓ %s (%d types)", r.label, r.count))
-			}
-
-			if err := writeFileAtomic(filepath.Join(cache, "preview.jq"), []byte(schema.PreviewProgram), 0o644); err != nil {
-				return err
-			}
-			var lines []string
-			files, _ := filepath.Glob(filepath.Join(cache, "*.json"))
-			for _, f := range files {
-				data, err := os.ReadFile(f)
-				if err != nil {
-					continue
-				}
-				s, err := schema.Parse(data)
-				if err != nil {
-					continue
-				}
-				lines = append(lines, s.Index(strings.TrimSuffix(filepath.Base(f), ".json"))...)
-			}
-			schema.SortIndex(lines)
-			if len(lines) == 0 {
-				return &ExitError{Code: exitGeneric, Msg: "✗ nothing cached: are you logged in? (api login)"}
-			}
-			if err := writeFileAtomic(filepath.Join(cache, "index.txt"), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
-				return err
-			}
-			envName := a.session().Name
-			if envName == "" {
-				envName = "?"
-			}
-			if err := writeFileAtomic(filepath.Join(cache, ".env"), []byte(envName+"\n"), 0o644); err != nil {
-				return err
-			}
-			if a.ugqlNested() {
-				// the fixed place the fzf / tv browsers read: the last server synced
-				if key, ok := a.ugqlKey(); ok {
-					if err := pointCurrent(a.ugqlRoot(), key); err != nil {
-						a.say("⚠ could not update " + filepath.Join(a.ugqlRoot(), "current") + ": " + err.Error())
-					}
-				}
-			}
-			a.say(fmt.Sprintf("✓ %d items in %s", len(lines), cache))
-			if fetched == 0 {
-				return &ExitError{Code: exitGeneric, Msg: "✗ no schema could be fetched: this cache is stale"}
-			}
-			return nil
+			return a.syncSchemas(cmd.Context(), args, o, prefix)
 		},
 	}
 	a.bindSchemaFlags(o, cmd, &prefix)
 	return cmd
+}
+
+// schemaJob is one introspection request, built before any of them is sent.
+type schemaJob struct {
+	label string
+	spec  httpc.Spec
+}
+
+// syncSchemas fetches every endpoint's schema into the cache directory and
+// rebuilds the files the fzf / tv browsers read.
+func (a *app) syncSchemas(ctx context.Context, args []string, o *reqOpts, prefix string) error {
+	names := args
+	if len(names) == 0 {
+		names = a.schemaProfile().Endpoints
+	}
+	if len(names) == 0 {
+		return &ExitError{Code: exitUsage, Msg: "✗ no endpoints: name them, or set endpoints = [...] under [env.<name>] in your config"}
+	}
+	jobs, err := a.schemaJobs(names, o, prefix)
+	if err != nil {
+		return err
+	}
+	if o.dry {
+		for _, j := range jobs {
+			fmt.Fprintln(a.io.Out, a.curlLine(j.spec, nil))
+		}
+		return nil
+	}
+
+	cache := a.ugqlCacheDir()
+	if cache == "" {
+		return &ExitError{Code: exitGeneric, Msg: "✗ no server to key the cache by: `api env load <suffix>`, `api env use <name>` or --base/--env first"}
+	}
+	if err := os.MkdirAll(cache, 0o755); err != nil {
+		return err
+	}
+
+	fetched := a.fetchSchemas(ctx, jobs, cache, o.retry)
+	items, err := a.writeSchemaIndex(cache)
+	if err != nil {
+		return err
+	}
+	if a.ugqlNested() {
+		// the fixed place the fzf / tv browsers read: the last server synced
+		if key, ok := a.ugqlKey(); ok {
+			if err := pointCurrent(a.ugqlRoot(), key); err != nil {
+				a.say("⚠ could not update " + filepath.Join(a.ugqlRoot(), "current") + ": " + err.Error())
+			}
+		}
+	}
+	a.say(fmt.Sprintf("✓ %d items in %s", items, cache))
+	if fetched == 0 {
+		return &ExitError{Code: exitGeneric, Msg: "✗ no schema could be fetched: this cache is stale"}
+	}
+	return nil
+}
+
+// schemaJobs builds one request per distinct, usable endpoint name.
+func (a *app) schemaJobs(names []string, o *reqOpts, prefix string) ([]schemaJob, error) {
+	var jobs []schemaJob
+	seen := map[string]bool{}
+	for _, n := range names {
+		label, ok := schemaLabel(n)
+		if !ok {
+			a.say(fmt.Sprintf("✗ %s (skipped: not a usable endpoint name)", n))
+			continue
+		}
+		if seen[label] {
+			continue
+		}
+		seen[label] = true
+		body, err := gqlBody(schema.SchemaQuery, "{}")
+		if err != nil {
+			return nil, err
+		}
+		// specs are built here, one at a time: building one reads config and
+		// may print a warning; only the network calls run concurrently
+		spec, err := a.newSpec("POST", gqlTarget(a.session().GraphQLURL, schemaEndpoint(a.effectivePrefix(prefix), n)), o)
+		if err != nil {
+			return nil, err
+		}
+		setJSONBody(&spec, body)
+		jobs = append(jobs, schemaJob{label, spec})
+	}
+	return jobs, nil
+}
+
+// fetchSchemas runs the jobs concurrently and stores each result as
+// <label>.json in cache. It returns how many were stored.
+func (a *app) fetchSchemas(ctx context.Context, jobs []schemaJob, cache string, retries int) int {
+	results := make(chan syncResult)
+	sem := make(chan struct{}, 6)
+	var wg sync.WaitGroup
+	for _, j := range jobs {
+		wg.Add(1)
+		go func(j schemaJob) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			results <- fetchSchema(ctx, j.label, j.spec, retries)
+		}(j)
+	}
+	go func() { wg.Wait(); close(results) }()
+
+	fetched := 0
+	for r := range results {
+		if r.err != "" {
+			a.say(fmt.Sprintf("✗ %s (skipped: %s)", r.label, r.err))
+			continue
+		}
+		if err := writeFileAtomic(filepath.Join(cache, r.label+".json"), r.data, 0o644); err != nil {
+			a.say(fmt.Sprintf("✗ %s (skipped: %v)", r.label, err))
+			continue
+		}
+		fetched++
+		a.say(fmt.Sprintf("✓ %s (%d types)", r.label, r.count))
+	}
+	return fetched
+}
+
+// writeSchemaIndex rebuilds preview.jq, index.txt and .env from the schemas in
+// cache and returns the number of index lines.
+func (a *app) writeSchemaIndex(cache string) (int, error) {
+	if err := writeFileAtomic(filepath.Join(cache, "preview.jq"), []byte(schema.PreviewProgram), 0o644); err != nil {
+		return 0, err
+	}
+	var lines []string
+	files, _ := filepath.Glob(filepath.Join(cache, "*.json"))
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		s, err := schema.Parse(data)
+		if err != nil {
+			continue
+		}
+		lines = append(lines, s.Index(strings.TrimSuffix(filepath.Base(f), ".json"))...)
+	}
+	schema.SortIndex(lines)
+	if len(lines) == 0 {
+		return 0, &ExitError{Code: exitGeneric, Msg: "✗ nothing cached: are you logged in? (api login)"}
+	}
+	if err := writeFileAtomic(filepath.Join(cache, "index.txt"), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		return 0, err
+	}
+	envName := a.session().Name
+	if envName == "" {
+		envName = "?"
+	}
+	if err := writeFileAtomic(filepath.Join(cache, ".env"), []byte(envName+"\n"), 0o644); err != nil {
+		return 0, err
+	}
+	return len(lines), nil
 }
 
 // fetchSchema runs one introspection request. It touches no shared state.

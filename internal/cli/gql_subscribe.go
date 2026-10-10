@@ -61,7 +61,32 @@ func bindSubscribeFlags(cmd *cobra.Command, so *subOpts) {
 // (newSpec: URL, headers, and the token only if the destination rules allow it),
 // then the same URL, headers and token are used for the WebSocket upgrade.
 func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, so *subOpts, call gqlCall) error {
-	endpoint, payload, filter := call.endpoint, call.payload, call.filter
+	if err := checkSubscribeOptions(o, so, call); err != nil {
+		return err
+	}
+	cfg, err := a.subscribeConfig(o, so, call)
+	if err != nil {
+		return err
+	}
+	if o.dry || a.debug || a.getenv("API_DEBUG") != "" {
+		desc := subscribeDescription(cfg)
+		if o.dry {
+			fmt.Fprintln(a.io.Out, desc)
+			return nil
+		}
+		a.say("→ " + desc)
+	}
+
+	if cmd.Flags().Changed("timeout") {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, o.timeout)
+		defer cancel()
+	}
+	return a.streamSubscription(ctx, o, so, cfg, call.filter)
+}
+
+// checkSubscribeOptions refuses the options that make no sense on a stream.
+func checkSubscribeOptions(o *reqOpts, so *subOpts, call gqlCall) error {
 	switch {
 	case len(call.pass) > 0:
 		return fmt.Errorf("a subscription runs over a WebSocket: curl arguments (--) do not apply")
@@ -70,23 +95,30 @@ func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, 
 	case so.max < 0:
 		return fmt.Errorf("--max must be 0 or more")
 	}
+	return nil
+}
+
+// subscribeConfig builds the WebSocket connection from the same Spec every
+// other request uses, so the token's destination rules apply unchanged.
+func (a *app) subscribeConfig(o *reqOpts, so *subOpts, call gqlCall) (gqlws.Config, error) {
+	endpoint, payload := call.endpoint, call.payload
 	var req struct {
 		Query     string          `json:"query"`
 		Variables json.RawMessage `json:"variables"`
 	}
 	if err := json.Unmarshal([]byte(payload), &req); err != nil {
-		return err
+		return gqlws.Config{}, err
 	}
 
 	s, prof := a.resolve()
 	target := gqlTarget(s.GraphQLURL, endpoint)
 	spec, err := a.newSpec("GET", target, o)
 	if err != nil {
-		return err
+		return gqlws.Config{}, err
 	}
 	u, err := url.Parse(spec.URL)
 	if err != nil {
-		return err
+		return gqlws.Config{}, err
 	}
 	switch u.Scheme {
 	case "http":
@@ -95,14 +127,14 @@ func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, 
 		u.Scheme = "wss"
 	case "ws", "wss":
 	default:
-		return fmt.Errorf("cannot open a WebSocket to %q", spec.URL)
+		return gqlws.Config{}, fmt.Errorf("cannot open a WebSocket to %q", spec.URL)
 	}
 	// env.<name>.subscriptions is a PATH on the env's own server: the origin, and so
 	// where the token goes, is the one the GraphQL URL already had.
 	if endpoint == "" && prof.Subscriptions != "" {
 		pu, perr := url.Parse(prof.Subscriptions)
 		if perr != nil {
-			return perr
+			return gqlws.Config{}, perr
 		}
 		u.Path, u.RawPath = pu.Path, ""
 		if pu.RawQuery != "" {
@@ -116,7 +148,7 @@ func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, 
 	}
 	proto, err := gqlws.ParseProtocol(protoName)
 	if err != nil {
-		return err
+		return gqlws.Config{}, err
 	}
 
 	header := http.Header{}
@@ -136,10 +168,10 @@ func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, 
 	if len(so.init) > 0 {
 		built, berr := jsonbody.BuildWith(so.init, false, true, resolver)
 		if berr != nil {
-			return berr
+			return gqlws.Config{}, berr
 		}
 		if err := json.Unmarshal([]byte(built), &initPayload); err != nil {
-			return err
+			return gqlws.Config{}, err
 		}
 	}
 	if so.tokenInInit || (prof.WSTokenInInit != nil && *prof.WSTokenInInit) {
@@ -167,21 +199,12 @@ func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, 
 		ConnectTimeout: o.connect,
 		Max:            so.max,
 	}
-	if o.dry || a.debug || a.getenv("API_DEBUG") != "" {
-		desc := subscribeDescription(cfg)
-		if o.dry {
-			fmt.Fprintln(a.io.Out, desc)
-			return nil
-		}
-		a.say("→ " + desc)
-	}
+	return cfg, nil
+}
 
-	if cmd.Flags().Changed("timeout") {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, o.timeout)
-		defer cancel()
-	}
-
+// streamSubscription prints each event through the filter until the stream ends
+// and maps how it ended to an exit code.
+func (a *app) streamSubscription(ctx context.Context, o *reqOpts, so *subOpts, cfg gqlws.Config, filter string) error {
 	color := a.colorOut()
 	var filterErr error
 	gqlMsg := ""
@@ -205,7 +228,12 @@ func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, 
 		return nil
 	}
 
-	err = gqlws.Subscribe(ctx, cfg, emit)
+	err := gqlws.Subscribe(ctx, cfg, emit)
+	return subscribeExit(ctx, o, err, filterErr, gqlMsg)
+}
+
+// subscribeExit turns the way a subscription ended into the command's result.
+func subscribeExit(ctx context.Context, o *reqOpts, err, filterErr error, gqlMsg string) error {
 	switch {
 	case err == nil && errors.Is(ctx.Err(), context.DeadlineExceeded):
 		// --timeout is curl's --max-time: reaching it is exit 28 (use --max N for a clean stop)

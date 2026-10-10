@@ -130,14 +130,105 @@ func (a *app) sayRunError(err error) {
 	a.say("✗ " + err.Error())
 }
 
+// runFlags are the options of `api run` that only it uses.
+type runFlags struct {
+	vars      []string
+	list      bool
+	all       bool
+	keepGoing bool
+}
+
+// runFile resolves a .http file, picks the requests to run and runs them.
+func (a *app) runFile(cmd *cobra.Command, args []string, o *reqOpts, rf *runFlags) error {
+	if len(args) == 0 {
+		if !rf.list {
+			return fmt.Errorf("missing <file|name> (try: api run --list)")
+		}
+		a.printSavedRequests()
+		return nil
+	}
+
+	path, err := resolveHTTPFile(args[0])
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	file, err := httpfile.Parse(data)
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+
+	if rf.list {
+		a.printRequests(file)
+		return nil
+	}
+
+	sel, filter, err := splitRunArgs(args[1:])
+	if err != nil {
+		return err
+	}
+	uservars, err := parseVars(rf.vars)
+	if err != nil {
+		return err
+	}
+	reqs, err := selectRequests(file, sel, rf.all)
+	if err != nil {
+		return err
+	}
+	if a.asserts, err = compileAsserts(path, reqs); err != nil {
+		return err
+	}
+
+	var firstErr error
+	for _, r := range reqs {
+		if rf.all {
+			a.say(fmt.Sprintf("→ %s: %s %s", r.Name, r.Method, r.URL))
+		}
+		job := runJob{path: path, file: file, req: r, uservars: uservars, filter: filter}
+		if err := a.runRequest(cmd, job, o); err != nil {
+			a.sayRunError(err)
+			if firstErr == nil {
+				firstErr = printedError(err)
+			}
+			if !rf.keepGoing {
+				break
+			}
+		}
+	}
+	if rf.all && a.assertTotal > 0 {
+		a.say(fmt.Sprintf("%d assertion(s): %d passed, %d failed", a.assertTotal, a.assertTotal-a.assertFailed, a.assertFailed))
+	}
+	return firstErr
+}
+
+func completeRunArgs(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	var out []cobra.Completion
+	switch len(args) {
+	case 0:
+		for _, n := range listHTTPFiles() {
+			out = append(out, n)
+		}
+		return out, cobra.ShellCompDirectiveDefault
+	case 1:
+		if p, err := resolveHTTPFile(args[0]); err == nil {
+			if data, err := os.ReadFile(p); err == nil {
+				if f, err := httpfile.Parse(data); err == nil {
+					for _, r := range f.Requests {
+						out = append(out, cobra.CompletionWithDesc(r.Name, r.Method+" "+r.URL))
+					}
+				}
+			}
+		}
+	}
+	return out, cobra.ShellCompDirectiveNoFileComp
+}
+
 func (a *app) runCmd() *cobra.Command {
 	o := &reqOpts{}
-	var (
-		vars      []string
-		list      bool
-		all       bool
-		keepGoing bool
-	)
+	rf := &runFlags{}
 	cmd := &cobra.Command{
 		Use:   "run [file|name] [request] [.filter]",
 		Short: "Run saved requests from a .http file (JetBrains / VS Code REST Client format)",
@@ -156,98 +247,15 @@ pass --trust-hosts.`,
   api run users "List users"
   api run users 2 .data.id --var id=42
   api run users --all --dry`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				if !list {
-					return fmt.Errorf("missing <file|name> (try: api run --list)")
-				}
-				a.printSavedRequests()
-				return nil
-			}
-
-			path, err := resolveHTTPFile(args[0])
-			if err != nil {
-				return err
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			file, err := httpfile.Parse(data)
-			if err != nil {
-				return fmt.Errorf("%s: %w", path, err)
-			}
-
-			if list {
-				a.printRequests(file)
-				return nil
-			}
-
-			sel, filter, err := splitRunArgs(args[1:])
-			if err != nil {
-				return err
-			}
-			uservars, err := parseVars(vars)
-			if err != nil {
-				return err
-			}
-			reqs, err := selectRequests(file, sel, all)
-			if err != nil {
-				return err
-			}
-			if a.asserts, err = compileAsserts(path, reqs); err != nil {
-				return err
-			}
-
-			var firstErr error
-			for _, r := range reqs {
-				if all {
-					a.say(fmt.Sprintf("→ %s: %s %s", r.Name, r.Method, r.URL))
-				}
-				job := runJob{path: path, file: file, req: r, uservars: uservars, filter: filter}
-				if err := a.runRequest(cmd, job, o); err != nil {
-					a.sayRunError(err)
-					if firstErr == nil {
-						firstErr = printedError(err)
-					}
-					if !keepGoing {
-						break
-					}
-				}
-			}
-			if all && a.assertTotal > 0 {
-				a.say(fmt.Sprintf("%d assertion(s): %d passed, %d failed", a.assertTotal, a.assertTotal-a.assertFailed, a.assertFailed))
-			}
-			return firstErr
-		},
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-			var out []cobra.Completion
-			switch len(args) {
-			case 0:
-				for _, n := range listHTTPFiles() {
-					out = append(out, n)
-				}
-				return out, cobra.ShellCompDirectiveDefault
-			case 1:
-				if p, err := resolveHTTPFile(args[0]); err == nil {
-					if data, err := os.ReadFile(p); err == nil {
-						if f, err := httpfile.Parse(data); err == nil {
-							for _, r := range f.Requests {
-								out = append(out, cobra.CompletionWithDesc(r.Name, r.Method+" "+r.URL))
-							}
-						}
-					}
-				}
-			}
-			return out, cobra.ShellCompDirectiveNoFileComp
-		},
+		RunE:              func(cmd *cobra.Command, args []string) error { return a.runFile(cmd, args, o, rf) },
+		ValidArgsFunction: completeRunArgs,
 	}
 	a.bindFlags(o, cmd, false)
 	f := cmd.Flags()
-	f.StringArrayVar(&vars, "var", nil, "set a {{variable}}: key=value (repeatable; beats @var in the file)")
-	f.BoolVar(&list, "list", false, "list saved files, or the requests inside a file")
-	f.BoolVar(&all, "all", false, "run every request in the file, in order (stops at the first failure)")
-	f.BoolVar(&keepGoing, "keep-going", false, "with --all: continue after a failure")
+	f.StringArrayVar(&rf.vars, "var", nil, "set a {{variable}}: key=value (repeatable; beats @var in the file)")
+	f.BoolVar(&rf.list, "list", false, "list saved files, or the requests inside a file")
+	f.BoolVar(&rf.all, "all", false, "run every request in the file, in order (stops at the first failure)")
+	f.BoolVar(&rf.keepGoing, "keep-going", false, "with --all: continue after a failure")
 	return cmd
 }
 
