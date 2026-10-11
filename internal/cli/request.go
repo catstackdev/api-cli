@@ -249,9 +249,23 @@ func (a *app) send(ctx context.Context, spec httpc.Spec, o *reqOpts) (*httpc.Res
 // finish prints the response and turns HTTP >= 400 / filter errors into exit
 // codes. The body is always printed first, like curl --fail-with-body.
 func (a *app) finish(resp *httpc.Response, o *reqOpts, filter string, rec *history.Entry) error {
-	var buf bytes.Buffer
 	// a viewer only on a terminal: through a pipe the body is printed as usual
 	view := o.viewer != "" && viewerTTY(a.io.Out)
+	body, filterErr, err := a.renderBody(resp, o, filter, view)
+	if err != nil {
+		return err
+	}
+	if err := a.showBody(body, o.viewer, view); err != nil {
+		return err
+	}
+	return a.finishStatus(resp, filterErr, rec)
+}
+
+// renderBody is what the response looks like as text: headers (-i), then the table
+// or the filtered body. With -o it writes the file instead and the text is empty.
+// A filter error comes back apart: the body is still shown before it ends the run.
+func (a *app) renderBody(resp *httpc.Response, o *reqOpts, filter string, view bool) (text []byte, filterErr, err error) {
+	var buf bytes.Buffer
 	color := a.colorOut() && !view // the viewer does its own colouring
 	if o.include {
 		buf.WriteString(ui.StatusLine(resp.Proto, resp.Status, resp.StatusText, color) + "\n")
@@ -259,10 +273,9 @@ func (a *app) finish(resp *httpc.Response, o *reqOpts, filter string, rec *histo
 		buf.WriteByte('\n')
 	}
 
-	var filterErr error
 	if o.output != "" {
 		if err := os.WriteFile(o.output, resp.Body, 0o644); err != nil {
-			return err
+			return nil, nil, err
 		}
 		a.say(fmt.Sprintf("✓ saved %d bytes → %s", len(resp.Body), o.output))
 	} else if o.table && !o.rawBody && writeTable(&buf, resp.Body, filter, o.columns, color) {
@@ -276,26 +289,27 @@ func (a *app) finish(resp *httpc.Response, o *reqOpts, filter string, rec *histo
 			Color:     color,
 		})
 	}
-	if view && buf.Len() > 0 {
-		argv := viewerArgv(o.viewer, json.Valid(bytes.TrimSpace(buf.Bytes())))
-		if len(argv) > 0 {
-			err := ui.View(a.io.Out, buf.Bytes(), argv)
+	return buf.Bytes(), filterErr, nil
+}
+
+// showBody puts the text in front of the user: in the viewer when one was asked
+// for (view), otherwise through the pager (less -FRX by default: it exits by
+// itself when everything fits one screen). A viewer that cannot run never loses
+// the text: it is printed the usual way.
+func (a *app) showBody(text []byte, viewer string, view bool) error {
+	if view && len(text) > 0 {
+		if argv := viewerArgv(viewer, json.Valid(bytes.TrimSpace(text))); len(argv) > 0 {
+			err := ui.View(a.io.Out, text, argv)
 			if err == nil {
-				return a.finishStatus(resp, filterErr, rec)
+				return nil
 			}
-			// never lose the body: print it the usual way
 			a.say("⚠ viewer " + viewerName(argv) + ": " + shortErr(err) + " (printing instead)")
 		}
 	}
-	// Long output on a terminal goes through the pager (less -FRX by default:
-	// it exits by itself when everything fits one screen).
-	if err := ui.Page(a.io.Out, buf.Bytes(), ui.PagerOptions{
+	return ui.Page(a.io.Out, text, ui.PagerOptions{
 		Cmd:     ui.PagerCmdWith(a.lookup),
 		Enabled: ui.ShouldPageWith(a.io.Out, a.noPager, a.lookup),
-	}); err != nil {
-		return err
-	}
-	return a.finishStatus(resp, filterErr, rec)
+	})
 }
 
 // finishStatus is the end of finish: the exit code for the response, once its body
