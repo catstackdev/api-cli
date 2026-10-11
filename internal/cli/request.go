@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -249,7 +250,9 @@ func (a *app) send(ctx context.Context, spec httpc.Spec, o *reqOpts) (*httpc.Res
 // codes. The body is always printed first, like curl --fail-with-body.
 func (a *app) finish(resp *httpc.Response, o *reqOpts, filter string, rec *history.Entry) error {
 	var buf bytes.Buffer
-	color := a.colorOut()
+	// a viewer only on a terminal: through a pipe the body is printed as usual
+	view := o.viewer != "" && viewerTTY(a.io.Out)
+	color := a.colorOut() && !view // the viewer does its own colouring
 	if o.include {
 		buf.WriteString(ui.StatusLine(resp.Proto, resp.Status, resp.StatusText, color) + "\n")
 		writeHeaders(&buf, "", resp.Header, color)
@@ -273,6 +276,17 @@ func (a *app) finish(resp *httpc.Response, o *reqOpts, filter string, rec *histo
 			Color:     color,
 		})
 	}
+	if view && buf.Len() > 0 {
+		argv := viewerArgv(o.viewer, json.Valid(bytes.TrimSpace(buf.Bytes())))
+		if len(argv) > 0 {
+			err := ui.View(a.io.Out, buf.Bytes(), argv)
+			if err == nil {
+				return a.finishStatus(resp, filterErr, rec)
+			}
+			// never lose the body: print it the usual way
+			a.say("⚠ viewer " + viewerName(argv) + ": " + shortErr(err) + " (printing instead)")
+		}
+	}
 	// Long output on a terminal goes through the pager (less -FRX by default:
 	// it exits by itself when everything fits one screen).
 	if err := ui.Page(a.io.Out, buf.Bytes(), ui.PagerOptions{
@@ -281,7 +295,12 @@ func (a *app) finish(resp *httpc.Response, o *reqOpts, filter string, rec *histo
 	}); err != nil {
 		return err
 	}
+	return a.finishStatus(resp, filterErr, rec)
+}
 
+// finishStatus is the end of finish: the exit code for the response, once its body
+// has been shown.
+func (a *app) finishStatus(resp *httpc.Response, filterErr error, rec *history.Entry) error {
 	if resp.Status >= 400 {
 		return &ExitError{Code: exitHTTP, Msg: fmt.Sprintf("✗ HTTP %d %s", resp.Status, resp.StatusText)}
 	}

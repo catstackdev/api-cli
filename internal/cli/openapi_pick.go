@@ -143,6 +143,7 @@ func (a *app) openapiPickCmd() *cobra.Command {
 		},
 	}
 	a.bindFlags(o, cmd, false)
+	a.bindViewerFlag(cmd, o)
 	bindPickFlags(cmd, pf)
 	return cmd
 }

@@ -41,6 +41,7 @@ type outputOpts struct {
 	columns    []string
 	har        string
 	harSecrets bool
+	viewer     string // --viewer: set only on the commands that bind it (bindViewerFlag)
 }
 
 // reqOpts are the flags shared by every command that sends a request, in three

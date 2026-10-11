@@ -140,6 +140,7 @@ work as commands.
 | `--no-auth`, `-k`                | skip the bearer token / skip TLS verification                                          |
 | `--trust-hosts`                  | send your token to an absolute URL on another host (default: only the active base URL) |
 | `--strict` (gql)                 | exit 4 when the response has GraphQL `errors`                                          |
+| `--viewer jless\|fx\|nvim\|cmd` | (`gql`, `openapi pick`, `again`) show the result in an interactive viewer              |
 | `-- <curl args>`                 | hand the request to real curl with extra flags                                         |
 
 Global flags (work on every command): `--env <name>`, `--base`, `--token`, `-C`
@@ -842,6 +843,16 @@ added as one more decoder in `internal/openapi`.
 - **Pager:** long output on a terminal goes through `less -FRX` (it quits by
   itself when the output fits one screen). `--no-pager` or an empty `API_PAGER`
   turns it off; `api watch`, `-o` and empty output never page.
+- **Viewer:** `api gql`, `api openapi pick` and `api again` take `--viewer` to look
+  at the result in a viewer that can fold and search instead of printing it:
+  `--viewer jless`, `fx`, `nvim` / `vim` (read-only, folded by indentation) or any
+  command that reads stdin (`--viewer "bat -l json"`; words are split, no shell).
+  It is only for you at the keyboard: nothing in a config file or a repo can choose
+  it, it opens only when stdout is a terminal (through a pipe the body is printed as
+  usual), the filter still applies, the exit code is unchanged (a viewed 500 is
+  still 22), and a viewer that is missing or fails just prints the body instead.
+  Not for subscriptions (pipe those). For other commands pipe: `api get /x | jless`.
+  A shell alias keeps it short: `alias apiv='api --viewer jless'`.
 
 ## Environment variables
 

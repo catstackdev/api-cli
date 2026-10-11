@@ -106,7 +106,7 @@ editor opens a `.http` request (body skeleton from the spec), save to run, quit
 to cancel, and anything but a GET asks `✱ ... changes data ...: run it? [y/N]`;
 the request is kept in `.api/requests/`. It needs a terminal, so do not run it
 from an agent shell (`pick --print` also opens fzf): use `api openapi list` and
-build the request yourself. Only JSON is read: convert YAML with `yq -o=json`. A
+build the request yourself (the same goes for `--viewer` on `gql`, `pick` and `again`: it opens an interactive viewer for a person, never use it from an agent). Only JSON is read: convert YAML with `yq -o=json`. A
 NestJS app needs
 `SwaggerModule.setup('openapi', app, doc, { ui: false, raw: ['json'], jsonDocumentUrl: '/openapi.json' })`
 for a spec URL to exist at all.

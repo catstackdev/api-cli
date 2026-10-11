@@ -92,6 +92,7 @@ Flags:
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -v, --verbose                    print request and response headers to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: jless, fx, nvim, vim or any command that reads stdin
       --yes                        saved request: do not ask before running one that changes data
 
 Global Flags:
@@ -793,6 +794,7 @@ Flags:
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -V, --var stringArray            variable key=value or key:=json (repeatable)
   -v, --verbose                    print request and response headers to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: jless, fx, nvim, vim or any command that reads stdin
       --yes                        with --pick: do not ask before running a mutation
 
 Global Flags:
@@ -1180,6 +1182,7 @@ Flags:
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -v, --verbose                    print request and response headers to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: jless, fx, nvim, vim or any command that reads stdin
       --yes                        do not ask before sending a request that changes data
 
 Global Flags:

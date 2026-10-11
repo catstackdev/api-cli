@@ -143,6 +143,9 @@ func (a *app) gqlCmd() *cobra.Command {
 			}
 
 			if q := gqlquery.Text(payload); gqlquery.IsSubscription(q) {
+				if o.viewer != "" {
+					return &ExitError{Code: exitUsage, Msg: "✗ --viewer does not work with a subscription (events stream as JSON lines: pipe them to a viewer)"}
+				}
 				so.strict = strict
 				return a.gqlSubscribe(cmd.Context(), cmd, o, &so, gqlCall{endpoint: endpoint, payload: payload, filter: filter, pass: pass})
 			}
@@ -171,6 +174,7 @@ func (a *app) gqlCmd() *cobra.Command {
 		},
 	}
 	a.bindFlags(o, cmd, false)
+	a.bindViewerFlag(cmd, o)
 	f := cmd.Flags()
 	f.StringVarP(&endpoint, "endpoint", "e", "", "path appended to the GraphQL base, or a full URL")
 	f.StringArrayVarP(&vars, "var", "V", nil, "variable key=value or key:=json (repeatable)")

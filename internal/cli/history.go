@@ -184,6 +184,7 @@ A .filter argument replaces the stored one. All the usual flags (-i, -c,
 		},
 	}
 	a.bindFlags(o, cmd, false)
+	a.bindViewerFlag(cmd, o)
 	cmd.Flags().BoolVar(&pick, "pick", false, "choose the entry with fzf")
 	cmd.Flags().BoolVar(&edit, "edit", false, "saved request: edit a copy in your editor first (unsaved = cancel; the file is not changed)")
 	cmd.Flags().BoolVar(&fresh, "default", false, "saved request: edit starting from the skeleton the pick generated, not your last version (that stays as <file>.bak)")
