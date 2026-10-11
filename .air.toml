@@ -1,0 +1,9 @@
+root = "."
+tmp_dir = "bin"
+
+[build]
+  cmd = "go build -o ./bin/api-dev ./cmd/api"
+  bin = "./bin/api-dev --version"
+  include_ext = ["go", "zsh", "bash", "json"]
+  exclude_dir = ["bin", "dist", "testdata", "examples", "test"]
+  delay = 300

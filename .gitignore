@@ -2,3 +2,4 @@ bin/
 dist/
 cover.out
 .api/
+docs/demo.gif

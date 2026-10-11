@@ -7,7 +7,7 @@ LDFLAGS  := -s -w -X cybercat/api/internal/cli.Version=$(VERSION) -X cybercat/ap
 # CGO off: a static binary that cross-compiles cleanly (e.g. for Termux).
 export CGO_ENABLED := 0
 
-.PHONY: build install install-skill test vet fmt check lint e2e e2e-keychain e2e-secretservice smoke fuzz vuln cover release clean
+.PHONY: build install install-skill test vet fmt check lint e2e e2e-keychain e2e-secretservice smoke fuzz vuln cover release clean watch
 
 build:
 	go build -ldflags '$(LDFLAGS)' -o $(BIN) ./cmd/api
@@ -22,6 +22,11 @@ install: build
 
 test:
 	go test -count=1 -race ./...
+
+# Re-run the tests of one package on every save (gotestsum). PKG=./internal/cli by default.
+watch:
+	@command -v gotestsum >/dev/null 2>&1 || { echo "gotestsum not installed (brew install gotestsum)"; exit 1; }
+	gotestsum --watch --format testname -- -count=1 -race $(or $(PKG),./internal/cli)
 
 vet:
 	go vet ./...
