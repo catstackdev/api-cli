@@ -61,7 +61,9 @@ func (a *app) gqlSubscribe(ctx context.Context, cmd *cobra.Command, o *reqOpts, 
 	if err != nil {
 		return err
 	}
-	if o.dry || a.debug || a.getenv("API_DEBUG") != "" {
+	if o.dry || o.verbose || a.debug || a.getenv("API_DEBUG") != "" {
+		// the same masked description for --dry, --debug and -v: a stream has no
+		// request/response pair to trace, so this is what -v can show of it
 		desc := subscribeDescription(cfg)
 		if o.dry {
 			fmt.Fprintln(a.io.Out, desc)

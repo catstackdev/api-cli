@@ -86,7 +86,7 @@ func (a *app) syncSchemas(ctx context.Context, args []string, o *reqOpts, prefix
 		return err
 	}
 
-	fetched := a.fetchSchemas(ctx, jobs, cache, o.retry)
+	fetched := a.fetchSchemas(ctx, jobs, cache, o)
 	items, err := a.writeSchemaIndex(cache)
 	if err != nil {
 		return err
@@ -138,9 +138,18 @@ func (a *app) schemaJobs(names []string, o *reqOpts, prefix string) ([]schemaJob
 
 // fetchSchemas runs the jobs concurrently and stores each result as
 // <label>.json in cache. It returns how many were stored.
-func (a *app) fetchSchemas(ctx context.Context, jobs []schemaJob, cache string, retries int) int {
+//
+// With -v the requests go one at a time through a.send, so each one's trace is
+// printed whole instead of interleaved with the others'.
+func (a *app) fetchSchemas(ctx context.Context, jobs []schemaJob, cache string, o *reqOpts) int {
 	results := make(chan syncResult)
-	sem := make(chan struct{}, 6)
+	width := 6
+	do := func(spec httpc.Spec) (*httpc.Response, error) { return httpc.Do(ctx, spec, o.retry) }
+	if o.verbose {
+		width = 1
+		do = func(spec httpc.Spec) (*httpc.Response, error) { return a.send(ctx, spec, o) }
+	}
+	sem := make(chan struct{}, width)
 	var wg sync.WaitGroup
 	for _, j := range jobs {
 		wg.Add(1)
@@ -148,7 +157,7 @@ func (a *app) fetchSchemas(ctx context.Context, jobs []schemaJob, cache string, 
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			results <- fetchSchema(ctx, j.label, j.spec, retries)
+			results <- fetchSchema(j.label, j.spec, do)
 		}(j)
 	}
 	go func() { wg.Wait(); close(results) }()
@@ -206,8 +215,9 @@ func (a *app) writeSchemaIndex(cache string) (int, error) {
 }
 
 // fetchSchema runs one introspection request. It touches no shared state.
-func fetchSchema(ctx context.Context, label string, spec httpc.Spec, retries int) syncResult {
-	resp, err := httpc.Do(ctx, spec, retries)
+// do is how the request is sent: plain httpc.Do, or a.send when -v wants it traced.
+func fetchSchema(label string, spec httpc.Spec, do func(httpc.Spec) (*httpc.Response, error)) syncResult {
+	resp, err := do(spec)
 	if err != nil {
 		return syncResult{label: label, err: shortErr(err)}
 	}

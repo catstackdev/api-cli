@@ -217,6 +217,7 @@ func (a *app) formCmd() *cobra.Command {
 		ValidArgsFunction: a.pathCompletion,
 	}
 	a.bindFlags(o, cmd, false)
+	a.bindViewerFlag(cmd, o)
 	cmd.Flags().StringArrayVarP(&fields, "form", "F", nil, "multipart field key=value or key=@file (repeatable)")
 	cmd.Flags().StringArrayVarP(&data, "data", "d", nil, "urlencoded field key=value (repeatable)")
 	return cmd

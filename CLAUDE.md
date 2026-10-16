@@ -11,10 +11,10 @@ in `README.md`; this file is the architecture and the traps.
 A Go CLI that replaced the zsh helpers of the retired `src/curl.sh`:
 `api get|post|gql|login|logout|env|json|run|diff|schema|secret|config|doctor|...`,
 with cobra tab completion and a built-in jq (gojq). It is a standalone module
-(`cybercat/api`). Its zsh shim is embedded in the binary (`internal/cli/shim.zsh`, and `shim.bash`;
-printed by `api shell-init`, which also embeds the completion script), so a user
-installs one file and runs `api shell-init --install`. The profile's `src/api.sh` is
-just that one line.
+(`cybercat/api`). Its zsh shim is embedded in the binary
+(`internal/cli/shim.zsh`, and `shim.bash`; printed by `api shell-init`, which
+also embeds the completion script), so a user installs one file and runs
+`api shell-init --install`. The profile's `src/api.sh` is just that one line.
 `src/up-scale.sh` is built on it (login, `ugql-*` wrappers); its fzf pickers and
 `ugql-browse` stay shell and read the `~/.cache/ugql` files `api schema sync`
 writes. Security rules are in `SECURITY.md` (each has a test that fails when the
@@ -49,7 +49,7 @@ internal/cli/             cobra commands; one file per concern
   requests.go               `requests ls|rm` for `.api/requests/` (names only, never a path)
 internal/ui/              ALL terminal presentation: colour decision, styled
                           messages, status/header lines, pager, tables
-internal/httpc/           Spec -> request / curl args / client / trace
+internal/httpc/           Spec -> request / curl args / client / per-attempt phase timings
 internal/gqlws/           GraphQL subscription over WebSocket (graphql-transport-ws and legacy graphql-ws)
 internal/render/          body printing, gojq filter, JSON colour, Decode
 internal/config/          global + project TOML, merge, Lint, schema.json; keys.go is the registry of
@@ -98,10 +98,11 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
 ## Gotchas (each one has bitten or would bite)
 
 1. **A child process cannot change the parent shell.** `login`, `env load` and
-   `env clear` only PRINT shell code under `--emit`; the shim (`internal/cli/shim.zsh`) evals it.
-   Everything printed for eval goes through `session.Quote`/`Export` (token
-   values come from server responses). Never print an unquoted value there, and
-   keep stdout of those commands to eval-able lines only; messages go to stderr.
+   `env clear` only PRINT shell code under `--emit`; the shim
+   (`internal/cli/shim.zsh`) evals it. Everything printed for eval goes through
+   `session.Quote`/`Export` (token values come from server responses). Never
+   print an unquoted value there, and keep stdout of those commands to eval-able
+   lines only; messages go to stderr.
 2. **Session vars are unexported on purpose** (`up-scale.sh` sets them without
    `export`). The binary only sees them because the shim forwards them as
    per-call prefix assignments (`_api::run`). Don't "fix" this by exporting.
@@ -119,8 +120,9 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
    result to the real `jq` (as `up-scale.sh` does for its schema shaping).
 6. **Exit codes are a contract**: 22 for HTTP >= 400 (body still printed first),
    28/7/6 for transport errors, 5 for a bad filter, 4 for `--strict` GraphQL
-   errors, 3 for a failed `# @assert` (which, when present, replaces 22 for
-   that request), 28 also when `--timeout` ends a subscription. Scripts rely on `api get ... && ...`.
+   errors, 3 for a failed `# @assert` (which, when present, replaces 22 for that
+   request), 28 also when `--timeout` ends a subscription. Scripts rely on
+   `api get ... && ...`.
 7. **Completion must stay offline and fast.** It runs on every TAB. No network,
    no slow disk scans. History is best-effort; never fail a request over it.
 8. **Name collisions**: the shim defines only `api`. Do not add `cget`/`cpost`
@@ -149,16 +151,18 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     unexported, like `upscale-login`), and drops the old token. A command whose
     stdout is shell code gets `--emit` AND `markShellEmit(cmd)` (shell_init.go):
     the shims' command list and global-flag list are GENERATED from the command
-    tree (`api shell-init`), never edited by hand, and `TestEmittingCommandsArePinnedToTheContract`
-    pins the list next to `shimContract`. Adding one means raising `shimContract`
-    (doctor.go; stamped into `API_SHIM`) so `api doctor` flags a shell still
-    running the old shim (a shell keeps the old functions in memory). Being eval'd
-    is decided by the annotation, never by a flag named `--emit`
-    (`TestEveryEmitFlagIsAnnotatedAndViceVersa`). `API_ENV_FROM` (`toml` for `env use`,
-    `file:.env.x` for `env load`, set by them, forwarded by the shims, contract 2) is
-    DISPLAY ONLY for `env status`: nothing decides from it, it is validated before
-    being shown, and a profile is still claimed only by `sameServer`. `TestWrapperBehaviour` drives the
-    generated zsh and bash (also `/bin/bash` 3.2) against a stub binary.
+    tree (`api shell-init`), never edited by hand, and
+    `TestEmittingCommandsArePinnedToTheContract` pins the list next to
+    `shimContract`. Adding one means raising `shimContract` (doctor.go; stamped
+    into `API_SHIM`) so `api doctor` flags a shell still running the old shim (a
+    shell keeps the old functions in memory). Being eval'd is decided by the
+    annotation, never by a flag named `--emit`
+    (`TestEveryEmitFlagIsAnnotatedAndViceVersa`). `API_ENV_FROM` (`toml` for
+    `env use`, `file:.env.x` for `env load`, set by them, forwarded by the
+    shims, contract 2) is DISPLAY ONLY for `env status`: nothing decides from
+    it, it is validated before being shown, and a profile is still claimed only
+    by `sameServer`. `TestWrapperBehaviour` drives the generated zsh and bash
+    (also `/bin/bash` 3.2) against a stub binary.
 13. **`diff` runs a request against two envs: GET and GraphQL queries only.**
     `gqlquery.IsReadOnly` is deliberately conservative. Never relax it to allow
     mutations, and keep each env's token separate.
@@ -169,13 +173,13 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     rejected.
 15. **History stores method, path, filter and the server's ORIGIN only**: never
     bodies, headers or tokens; paths with secret-looking query params are not
-    recorded. That is why `again` repeats GET only, plus saved picks. The file is
-    global, so every view is scoped: `app.historyEntries` is the ONE list that
-    `history`, `again N`, its completion and `--pick` number from (current server
-    only; `-a`/`--all` for everything), and `again` refuses an entry whose origin
-    is not the current server's, or that has none (older lines): it must never
-    send one API's path to another. A picked request (`openapi pick`, `gql
-    --pick`) is kept as `.api/requests/<name>.http` and the history holds a
+    recorded. That is why `again` repeats GET only, plus saved picks. The file
+    is global, so every view is scoped: `app.historyEntries` is the ONE list
+    that `history`, `again N`, its completion and `--pick` number from (current
+    server only; `-a`/`--all` for everything), and `again` refuses an entry
+    whose origin is not the current server's, or that has none (older lines): it
+    must never send one API's path to another. A picked request (`openapi pick`,
+    `gql --pick`) is kept as `.api/requests/<name>.http` and the history holds a
     `RUN` POINTER (name + origin + project root), never the query. `againRun`
     runs only `savedRequestPath(root, name)` (built from the name, never a
     path), only in that project and server, and re-asks for anything
@@ -190,8 +194,8 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     stdout unless `--keep-values`, and secret-looking keys / credential URLs
     stay blank even then.
 
-18. **`env load` maps a project's URL variables** (`internal/envmap`) by emitting
-    shell statements that reference the variable by NAME
+18. **`env load` maps a project's URL variables** (`internal/envmap`) by
+    emitting shell statements that reference the variable by NAME
     (`API_GRAPHQL_URL="$VITE_..."`): values never pass through Go. `[vars]`
     accepts URL variable names only, validated as shell identifiers (they end up
     in eval'd code) and never a token variable. The base URL is derived only
@@ -300,22 +304,21 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     embedded verbatim and `testdata/index.golden` was produced by the shell
     implementation it replaced; change either only together with those
     consumers. Output objects are built from structs, never maps, to keep key
-    order.
-    The location: with `UGQL_CACHE_DIR` set the directory is flat and yours (a tv
-    channel's per-project one, the smoke test); otherwise it is
-    `~/.cache/ugql/<origin key>/` (`ugqlCacheDir`, key = the GraphQL URL's origin,
-    like the OpenAPI index) so a sync against another server cannot replace these
-    schemas, and `~/.cache/ugql/current` is a relative symlink to the last server
-    synced (`pointCurrent`), the fixed path `ugql.toml` / `up-scale.sh` read
-    because they run without the session. `cache clear` only removes files api
-    writes, in directories holding its `preview.jq`.
+    order. The location: with `UGQL_CACHE_DIR` set the directory is flat and
+    yours (a tv channel's per-project one, the smoke test); otherwise it is
+    `~/.cache/ugql/<origin key>/` (`ugqlCacheDir`, key = the GraphQL URL's
+    origin, like the OpenAPI index) so a sync against another server cannot
+    replace these schemas, and `~/.cache/ugql/current` is a relative symlink to
+    the last server synced (`pointCurrent`), the fixed path `ugql.toml` /
+    `up-scale.sh` read because they run without the session. `cache clear` only
+    removes files api writes, in directories holding its `preview.jq`.
 
 36. **`run` captures are server data in a possibly-foreign file**
-    (`internal/capture` + `run_capture.go`): `{{name.response.*}}` values are inserted as literals
-    (`httpfile.Options.IsLiteral`), classed as secrets (foreign host needs
-    `--trust-hosts`), resolved by a Go key/index walker (never jq: it can read
-    `env`), never stored. Anything new that expands `{{...}}` must go through
-    `interpolateOptions`.
+    (`internal/capture` + `run_capture.go`): `{{name.response.*}}` values are
+    inserted as literals (`httpfile.Options.IsLiteral`), classed as secrets
+    (foreign host needs `--trust-hosts`), resolved by a Go key/index walker
+    (never jq: it can read `env`), never stored. Anything new that expands
+    `{{...}}` must go through `interpolateOptions`.
 37. **`Retry-After` is capped** (`httpc.RetryDelay`, 60s): a header must not be
     able to stall a script.
 
@@ -333,35 +336,36 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     Test: `TestLoginWithoutASessionAdoptsTheEnvSoTheTokenIsUsable`.
 
 40. **Interactive `api gql`** (`gql_interactive.go`): the confirmation is
-    decided by `gqlquery.IsReadOnly` on the text that will be sent, never by what
-    was picked; unsaved editor = cancel (the temp file's mtime is moved to the
-    past first); comment lines are stripped before sending (collapsed onto one
-    line a `#` would swallow the query); the printed one-liner never carries
+    decided by `gqlquery.IsReadOnly` on the text that will be sent, never by
+    what was picked; unsaved editor = cancel (the temp file's mtime is moved to
+    the past first); comment lines are stripped before sending (collapsed onto
+    one line a `#` would swallow the query); the printed one-liner never carries
     secret-looking variables. `schema.Skeleton` builds the operation (one
     selection level, plain fields only).
 
-41. **`# @assert` is jq from a possibly-foreign file** (`internal/assert`): compiled
-    with NO environment loader (gojq's CLI passes `os.Environ`, the library does
-    not; never add `WithEnvironLoader`), time-limited, compiled for every selected
-    request before the first one is sent, and a failure prints the expression
-    plus a reason, never response data (jq error text quotes values: use the fixed
-    reasons in `Eval`). No `{{...}}` expansion in assertions. Tests are
-    mutation-checked: `TestAssertCannotReadEnvironment`,
+41. **`# @assert` is jq from a possibly-foreign file** (`internal/assert`):
+    compiled with NO environment loader (gojq's CLI passes `os.Environ`, the
+    library does not; never add `WithEnvironLoader`), time-limited, compiled for
+    every selected request before the first one is sent, and a failure prints
+    the expression plus a reason, never response data (jq error text quotes
+    values: use the fixed reasons in `Eval`). No `{{...}}` expansion in
+    assertions. Tests are mutation-checked: `TestAssertCannotReadEnvironment`,
     `TestAssertFailureNeverPrintsResponseData`.
 
-42. **An OpenAPI spec is server data** (`internal/openapi`): `Parse` keeps only an
-    index of sanitised strings (no control characters, bounded size/count), never
-    the raw document; the cache file is keyed by the base URL's ORIGIN, never by
-    the env name (gotcha 27), owner-only, and completion only reads it (offline,
-    gotcha 7). Only JSON is decoded; YAML is one more `Decoder` in `decoders`
-    (it needs a YAML library: the module cache has `gopkg.in/yaml.v3`, but
-    `go.mod` stays dependency-light on purpose). Tests are mutation-checked:
-    `TestHostileSpecIsSanitised`, `TestLimits`, the per-server completion test.
-    `openapi pick` is the `api gql` flow for REST (`openapi.go`): a `.http` file in your
-    editor, unsaved = cancel, and the confirmation for anything but GET/HEAD/OPTIONS
-    is decided on the SAVED request, never on what was picked (gotcha 40). The
-    spec's summary is written as `# openapi: <text>` so it can never become an
-    annotation. `env.<name>.openapi` (where the spec lives) is a validated PATH, never a URL
+42. **An OpenAPI spec is server data** (`internal/openapi`): `Parse` keeps only
+    an index of sanitised strings (no control characters, bounded size/count),
+    never the raw document; the cache file is keyed by the base URL's ORIGIN,
+    never by the env name (gotcha 27), owner-only, and completion only reads it
+    (offline, gotcha 7). Only JSON is decoded; YAML is one more `Decoder` in
+    `decoders` (it needs a YAML library: the module cache has
+    `gopkg.in/yaml.v3`, but `go.mod` stays dependency-light on purpose). Tests
+    are mutation-checked: `TestHostileSpecIsSanitised`, `TestLimits`, the
+    per-server completion test. `openapi pick` is the `api gql` flow for REST
+    (`openapi.go`): a `.http` file in your editor, unsaved = cancel, and the
+    confirmation for anything but GET/HEAD/OPTIONS is decided on the SAVED
+    request, never on what was picked (gotcha 40). The spec's summary is written
+    as `# openapi: <text>` so it can never become an annotation.
+    `env.<name>.openapi` (where the spec lives) is a validated PATH, never a URL
     (`config.ValidateOpenAPIPath`); an explicit argument beats it, it beats the
     probes, and a configured path that 404s is an error, not a reason to probe.
 
@@ -372,8 +376,8 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     a non-JSON multi-line body, `{{` anywhere (the runner would expand it),
     pipes/redirects. Every comment line is built through `comment()` (no `@`, so
     it can never become `# @assert`). Secrets are never copied: JSON fields,
-    headers and query parameters that look secret (a Cookie header is dropped: it is the
-    browser's session, not your API credential) (`internal/secret`)
+    headers and query parameters that look secret (a Cookie header is dropped:
+    it is the browser's session, not your API credential) (`internal/secret`)
     become `{{$env API_NAME}}`, a bearer token `{{token}}`, `-u` a reference;
     the JSON is rewritten on the token stream to keep key order. The command
     only prints (or appends with `--out`, never overwrites) and never touches
@@ -382,45 +386,49 @@ passthrough, so they cannot drift. A new command builds a Spec and calls
     `@keychain:` references: `{{$env API_*}}` is what it can read. Tests are
     mutation-checked (`TestLoginCurl`, `TestHostileInputIsRefused`);
     `FuzzParseRender` is in `make fuzz`. Which headers matter is decided in ONE
-    place, `curlimport/policy.go` (`classify`): known noise groups with a reason,
-    redundant ones (api's own `Accept`, what the matching env profile already
-    sends), secret ones, and unknown ones that are kept but flagged (`--minimal`
-    drops them, `--keep` overrules a drop but never the secret masking). Add a
-    header to a group there, not in `render.go`.
+    place, `curlimport/policy.go` (`classify`): known noise groups with a
+    reason, redundant ones (api's own `Accept`, what the matching env profile
+    already sends), secret ones, and unknown ones that are kept but flagged
+    (`--minimal` drops them, `--keep` overrules a drop but never the secret
+    masking). Add a header to a group there, not in `render.go`.
 
 44. **Headers go through `httpc.CheckHeader`** (`-H` via `ParseHeader`, `.http`
     requests in `run`, and env `headers` on config read and `config set`): token
-    name, no control characters, errors that name the header and never the value.
-    A new place that builds a header from outside input must call it. A config
-    file holds no credential header (`X-API-Key`...): `config set` refuses it
-    (`IsSecretKey`) and `Lint` warns for any secret-looking name; the way to send
-    one is `-H "X-API-Key: $VAR"` or `{{$env API_NAME}}`. Header values as
-    `@keychain:` references would be a new credential path (needs the same-origin
-    rule the token has, and per-header provenance after `Merge`): not built.
+    name, no control characters, errors that name the header and never the
+    value. A new place that builds a header from outside input must call it. A
+    config file holds no credential header (`X-API-Key`...): `config set`
+    refuses it (`IsSecretKey`) and `Lint` warns for any secret-looking name; the
+    way to send one is `-H "X-API-Key: $VAR"` or `{{$env API_NAME}}`. Header
+    values as `@keychain:` references would be a new credential path (needs the
+    same-origin rule the token has, and per-header provenance after `Merge`):
+    not built.
 
-45. **Subscriptions run over a WebSocket built from the SAME Spec** (`gql_subscribe.go`,
-    protocol in `internal/gqlws`, the only user of `coder/websocket`): `gqlSubscribe`
-    calls `newSpec` and converts its URL and headers, so the token's destination
-    rules (gotchas 10, 28, 33) apply unchanged; never read `s.Token` there. The
-    token goes into `connection_init` only from the Authorization header the Spec
-    already carries. A subscription is detected from the query text
-    (`gqlquery.IsSubscription`), upgrades are never redirected, and `env.<name>.subscriptions`
-    is a PATH (`ValidateSubscriptionsPath`). Do not add a config key whose name
-    contains `auth`, `pass`, `secret`, `key` or `token` as a whole word: `IsSecretKey`
-    makes `config set` refuse it (`ws_init_auth` was renamed `ws_token_in_init` for that).
-    A login key keeps the rest of the env (`bindLogin` in `keys.go`); do not rebuild an
-    `Env` field by field.
+45. **Subscriptions run over a WebSocket built from the SAME Spec**
+    (`gql_subscribe.go`, protocol in `internal/gqlws`, the only user of
+    `coder/websocket`): `gqlSubscribe` calls `newSpec` and converts its URL and
+    headers, so the token's destination rules (gotchas 10, 28, 33) apply
+    unchanged; never read `s.Token` there. The token goes into `connection_init`
+    only from the Authorization header the Spec already carries. A subscription
+    is detected from the query text (`gqlquery.IsSubscription`), upgrades are
+    never redirected, and `env.<name>.subscriptions` is a PATH
+    (`ValidateSubscriptionsPath`). Do not add a config key whose name contains
+    `auth`, `pass`, `secret`, `key` or `token` as a whole word: `IsSecretKey`
+    makes `config set` refuse it (`ws_init_auth` was renamed `ws_token_in_init`
+    for that). A login key keeps the rest of the env (`bindLogin` in `keys.go`);
+    do not rebuild an `Env` field by field.
 
-46. **Settable config keys live in ONE table** (`internal/config/keys.go`): `Set`,
-    `Get`, the in-place text edit (`SetInFile`) and `SettableKeys` all derive from it.
-    Adding a key = the struct field + toml tag, ONE row in `keys`, the read-side check
-    in `ParseText`, the overlay in `Merge`, and `schema.json`. Each row declares its
-    `fileScope`, and the zero value is `globalFile` (honoured from the global config
-    only): being project-settable must be said, never assumed. What a project file may
-    override is still hand-written in `LoadWith` and `Merge` so it reads in one place;
-    `TestWhatAProjectFileMayOverride` checks the table against that behaviour in both
-    directions, and `TestGlobalOnlyKeysAreExactlyThese` spells the four global-only keys
-    out on purpose. `Get` does not serve `login.*` keys (unchanged behaviour).
+46. **Settable config keys live in ONE table** (`internal/config/keys.go`):
+    `Set`, `Get`, the in-place text edit (`SetInFile`) and `SettableKeys` all
+    derive from it. Adding a key = the struct field + toml tag, ONE row in
+    `keys`, the read-side check in `ParseText`, the overlay in `Merge`, and
+    `schema.json`. Each row declares its `fileScope`, and the zero value is
+    `globalFile` (honoured from the global config only): being project-settable
+    must be said, never assumed. What a project file may override is still
+    hand-written in `LoadWith` and `Merge` so it reads in one place;
+    `TestWhatAProjectFileMayOverride` checks the table against that behaviour in
+    both directions, and `TestGlobalOnlyKeysAreExactlyThese` spells the four
+    global-only keys out on purpose. `Get` does not serve `login.*` keys
+    (unchanged behaviour).
 
 ## Output rules (internal/ui)
 
@@ -473,8 +481,8 @@ make smoke                 # whole tool end to end, see below
 - Module download is also blocked by the sandbox proxy (TLS verify). Use a warm
   module cache: `GOMODCACHE`/`GOCACHE` in the scratchpad, then `GOPROXY=off`.
 - `make e2e` (`test/shim.zsh`) tests the shim against real local servers: run it
-  after touching `internal/cli/shim.zsh`, `env use`, `login` or token handling. It runs
-  with `no_unset` on purpose: the shim must not die under `set -u`.
+  after touching `internal/cli/shim.zsh`, `env use`, `login` or token handling.
+  It runs with `no_unset` on purpose: the shim must not die under `set -u`.
 - Verify shim changes with the profile's `verify-init-change` skill (new shell,
   `exec zsh`, same-shell re-source), and the end-to-end shim check in the
   `api-verify` skill here.
@@ -487,11 +495,12 @@ make smoke                 # whole tool end to end, see below
   the variables (this fooled a repro once). Also `status` is read-only in zsh.
 - Backticks inside Go raw strings (the config templates in `edit.go`) break the
   build.
-- **Install by replacing, never overwriting** (`make install`: copy to `api.new`, then
-  `mv`): on Apple silicon `cp` over a binary that already ran leaves a stale cached
-  code signature and the kernel SIGKILLs the new one at launch (exit 137, no output,
-  while the same bytes run fine from a new inode). If `api` "stopped working" after an
-  install, check `~/.local/bin/api --version; echo $?` before suspecting the code.
+- **Install by replacing, never overwriting** (`make install`: copy to
+  `api.new`, then `mv`): on Apple silicon `cp` over a binary that already ran
+  leaves a stale cached code signature and the kernel SIGKILLs the new one at
+  launch (exit 137, no output, while the same bytes run fine from a new inode).
+  If `api` "stopped working" after an install, check
+  `~/.local/bin/api --version; echo $?` before suspecting the code.
 - Docs: update `README.md` when a flag or command changes, and
   `skills/api-cli.md` when it changes what an agent should do (exit codes, the
   session rules, a command it names). That file is shipped to users: no personal
@@ -499,8 +508,9 @@ make smoke                 # whole tool end to end, see below
 
 ## Conventions
 
-- Go: stdlib first; cobra for CLI, gojq for jq, coder/websocket for subscriptions (only in `internal/gqlws`). Errors that should end the run
-  with a code are `*ExitError`; everything else is exit 2 (usage).
+- Go: stdlib first; cobra for CLI, gojq for jq, coder/websocket for
+  subscriptions (only in `internal/gqlws`). Errors that should end the run with
+  a code are `*ExitError`; everything else is exit 2 (usage).
 - Comments explain WHY (the non-obvious constraint), not what.
-- Shell (`internal/cli/shim.zsh`): house style from `~/dotfiles/CLAUDE.md` (`::` namespace,
-  `local` everywhere, quote variables, zsh builtins over forks).
+- Shell (`internal/cli/shim.zsh`): house style from `~/dotfiles/CLAUDE.md` (`::`
+  namespace, `local` everywhere, quote variables, zsh builtins over forks).

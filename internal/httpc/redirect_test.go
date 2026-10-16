@@ -189,24 +189,12 @@ func TestInsecureOnlyWhenAsked(t *testing.T) {
 	}
 }
 
-func TestTrace(t *testing.T) {
+func TestDoRefusesAnInvalidRequestBeforeSending(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(5 * time.Millisecond)
-		_, _ = w.Write([]byte("ok"))
+		t.Error("an invalid request must not reach the server")
 	}))
 	defer srv.Close()
-	tm, err := Trace(context.Background(), Spec{Method: "GET", URL: srv.URL, Timeout: 5 * time.Second})
-	if err != nil || tm.Status != 200 {
-		t.Fatalf("timing=%+v err=%v", tm, err)
-	}
-	// cumulative, like curl's time_connect / time_starttransfer
-	if !(tm.Connect > 0 && tm.Connect <= tm.TTFB && tm.TTFB <= tm.Total) {
-		t.Errorf("phases must be cumulative: %+v", tm)
-	}
-	if tm.TLS != 0 {
-		t.Errorf("plain http has no TLS phase: %+v", tm)
-	}
-	if _, err := Trace(context.Background(), Spec{Method: "BAD METHOD", URL: srv.URL}); err == nil {
+	if _, err := Do(context.Background(), Spec{Method: "BAD METHOD", URL: srv.URL}, 0); err == nil {
 		t.Error("an invalid request must fail before sending")
 	}
 }

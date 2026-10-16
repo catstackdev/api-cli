@@ -34,10 +34,12 @@ func viewerArgv(spec string, isJSON bool) []string {
 }
 
 // bindViewerFlag adds --viewer. Only the commands whose job is to look at one
-// result (gql, openapi pick, again) take it: the viewer is chosen on the command
-// line, never by a config file, so a cloned repo cannot pick a program to run.
+// result take it (get, post, put, patch, del, form, gql, openapi pick, again), not
+// the ones that print several (run, diff) or stream (watch, subscriptions). The
+// viewer is chosen on the command line, never by a config file, so a cloned repo
+// cannot pick a program to run, and it opens only on a terminal, never in a pipe.
 func (a *app) bindViewerFlag(cmd *cobra.Command, o *reqOpts) {
-	cmd.Flags().StringVar(&o.viewer, "viewer", "", "show the result in an interactive viewer instead of printing it: jless, fx, nvim, vim or any command that reads stdin")
+	cmd.Flags().StringVar(&o.viewer, "viewer", "", "show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin")
 	_ = cmd.RegisterFlagCompletionFunc("viewer", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		var found []string
 		for _, name := range viewerPresets {

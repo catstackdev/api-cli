@@ -91,8 +91,8 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
-      --viewer string              show the result in an interactive viewer instead of printing it: jless, fx, nvim, vim or any command that reads stdin
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
       --yes                        saved request: do not ask before running one that changes data
 
 Global Flags:
@@ -385,7 +385,8 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -444,7 +445,7 @@ Flags:
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -V, --var stringArray            (--gql) variable key=value or key:=json (repeatable)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -692,7 +693,8 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -736,7 +738,8 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -793,8 +796,8 @@ Flags:
       --token-in-init              subscriptions: also send the token in connection_init, for servers that read it there; env.<name>.ws_token_in_init
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
   -V, --var stringArray            variable key=value or key:=json (repeatable)
-  -v, --verbose                    print request and response headers to stderr
-      --viewer string              show the result in an interactive viewer instead of printing it: jless, fx, nvim, vim or any command that reads stdin
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
       --yes                        with --pick: do not ask before running a mutation
 
 Global Flags:
@@ -833,7 +836,7 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1026,7 +1029,7 @@ Flags:
       --timeout duration            total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                 send your token to an absolute URL on another host (default: only to the active base URL)
   -V, --var stringArray             variable key=value or key:=json (repeatable); values may be @keychain:NAME / @env:NAME / @prompt
-  -v, --verbose                     print request and response headers to stderr
+  -v, --verbose                     print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1109,7 +1112,7 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
       --yes                        do not ask before sending a request that changes data
 
 Global Flags:
@@ -1181,8 +1184,8 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
-      --viewer string              show the result in an interactive viewer instead of printing it: jless, fx, nvim, vim or any command that reads stdin
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
       --yes                        do not ask before sending a request that changes data
 
 Global Flags:
@@ -1236,6 +1239,7 @@ Flags:
       --retry int                  retry transport errors and 502/503/504 N times
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1280,7 +1284,8 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1325,7 +1330,8 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1370,7 +1376,8 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
+      --viewer string              show the result in an interactive viewer instead of printing it: nvim, jless, fx or any command that reads stdin
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1489,7 +1496,7 @@ Flags:
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
       --var stringArray            set a {{variable}}: key=value (repeatable; beats @var in the file)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1540,6 +1547,7 @@ Flags:
       --retry int                  retry transport errors and 502/503/504 N times
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1570,6 +1578,7 @@ Flags:
       --retry int                  retry transport errors and 502/503/504 N times
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1614,6 +1623,7 @@ Flags:
       --retry int                  retry transport errors and 502/503/504 N times
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1654,6 +1664,7 @@ Flags:
       --retry int                  retry transport errors and 502/503/504 N times
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1683,6 +1694,7 @@ Flags:
       --retry int                  retry transport errors and 502/503/504 N times
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1712,6 +1724,7 @@ Flags:
       --retry int                  retry transport errors and 502/503/504 N times
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1907,7 +1920,7 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)
@@ -1948,7 +1961,7 @@ Flags:
   -t, --table                      print an array of objects (or one object) as a table
       --timeout duration           total time limit (env CURL_MAX_TIME, seconds) (default 5m0s)
       --trust-hosts                send your token to an absolute URL on another host (default: only to the active base URL)
-  -v, --verbose                    print request and response headers to stderr
+  -v, --verbose                    print the masked request, response headers and timings to stderr
 
 Global Flags:
       --base string         base URL (default $API_BASE_URL)

@@ -8,7 +8,6 @@ import (
 	"syscall"
 	"time"
 
-	"cybercat/api/internal/httpc"
 	"cybercat/api/internal/jsonbody"
 	"cybercat/api/internal/render"
 	"cybercat/api/internal/ui"
@@ -146,10 +145,12 @@ func (a *app) timeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			t, err := httpc.Trace(cmd.Context(), spec)
+			o.retry = 0 // a timing of a retried request would be a lie
+			resp, err := a.send(cmd.Context(), spec, o)
 			if err != nil {
-				return &ExitError{Code: httpc.ExitCode(err), Msg: "✗ " + shortErr(err)}
+				return err
 			}
+			t := resp.Timing
 			row := func(name string, d time.Duration) {
 				fmt.Fprintf(a.io.Out, "%-8s%.3fs\n", name, d.Seconds())
 			}

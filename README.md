@@ -121,27 +121,27 @@ work as commands.
 
 ### Flags (request commands)
 
-| Flag                             | Meaning                                                                                |
-| -------------------------------- | -------------------------------------------------------------------------------------- |
-| `-H "Name: value"`               | extra header (repeatable)                                                              |
-| `-Q key=value`                   | query parameter (repeatable)                                                           |
-| `-d`, `--data`                   | body; `@file` reads a file, `-` reads stdin                                            |
-| `-r` / `-c` / `-R`               | raw strings (jq `-r`) / compact / body untouched                                       |
-| `-t`, `--table`, `--columns a,b` | print an array of objects (or one object) as a table                                   |
-| `-i` / `-v`                      | print status+headers / trace request to stderr                                         |
-| `-o file`                        | write the body to a file                                                               |
-| `--dry`                          | print the exact curl command, don't send                                               |
-| `--debug`                        | print the curl command to stderr, then send                                            |
-| `--summary`                      | status/type/time/size footer (`API_SUMMARY=1`)                                         |
-| `--har file`                     | append the exchange to a HAR file (secrets masked)                                     |
-| `--har-secrets`                  | keep secrets in the HAR (dangerous to share)                                           |
-| `--retry N`                      | retry transport errors and 429/502/503/504 (honours `Retry-After`, at most 60s)        |
-| `--timeout`, `--connect-timeout` | override the limits (300s / 10s)                                                       |
-| `--no-auth`, `-k`                | skip the bearer token / skip TLS verification                                          |
-| `--trust-hosts`                  | send your token to an absolute URL on another host (default: only the active base URL) |
-| `--strict` (gql)                 | exit 4 when the response has GraphQL `errors`                                          |
-| `--viewer jless\|fx\|nvim\|cmd` | (`gql`, `openapi pick`, `again`) show the result in an interactive viewer              |
-| `-- <curl args>`                 | hand the request to real curl with extra flags                                         |
+| Flag                             | Meaning                                                                                                                 |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `-H "Name: value"`               | extra header (repeatable)                                                                                               |
+| `-Q key=value`                   | query parameter (repeatable)                                                                                            |
+| `-d`, `--data`                   | body; `@file` reads a file, `-` reads stdin                                                                             |
+| `-r` / `-c` / `-R`               | raw strings (jq `-r`) / compact / body untouched                                                                        |
+| `-t`, `--table`, `--columns a,b` | print an array of objects (or one object) as a table                                                                    |
+| `-i` / `-v`                      | print status+headers / masked request, response headers and timings to stderr                                           |
+| `-o file`                        | write the body to a file                                                                                                |
+| `--dry`                          | print the exact curl command, don't send                                                                                |
+| `--debug`                        | print the curl command to stderr, then send                                                                             |
+| `--summary`                      | status/type/time/size footer (`API_SUMMARY=1`)                                                                          |
+| `--har file`                     | append the exchange to a HAR file (secrets masked)                                                                      |
+| `--har-secrets`                  | keep secrets in the HAR (dangerous to share)                                                                            |
+| `--retry N`                      | retry transport errors and 429/502/503/504 (honours `Retry-After`, at most 60s)                                         |
+| `--timeout`, `--connect-timeout` | override the limits (300s / 10s)                                                                                        |
+| `--no-auth`, `-k`                | skip the bearer token / skip TLS verification                                                                           |
+| `--trust-hosts`                  | send your token to an absolute URL on another host (default: only the active base URL)                                  |
+| `--strict` (gql)                 | exit 4 when the response has GraphQL `errors`                                                                           |
+| `--viewer nvim\|jless\|fx\|cmd`  | (`get`, `post`, `put`, `patch`, `del`, `form`, `gql`, `openapi pick`, `again`) show the result in an interactive viewer |
+| `-- <curl args>`                 | hand the request to real curl with extra flags                                                                          |
 
 Global flags (work on every command): `--env <name>`, `--base`, `--token`, `-C`
 / `-M` / `--color`, `--no-pager`, `--debug`.
@@ -175,12 +175,12 @@ api gql 'subscription { ping }' --dry                 # shows the upgrade and bo
   `env.<name>.subscriptions = "/realtime"` is the PATH of a different WebSocket
   endpoint on that same server (never a URL, so the token cannot be aimed
   elsewhere).
-- The token is sent exactly like for a request: in the `Authorization` header
-  of the upgrade, and only to the active server (an absolute `-e` URL on
-  another host gets none). Servers made for browsers read it from
-  `connection_init` instead: `--token-in-init` or `ws_token_in_init = true`.
-  `--init key=value` adds more fields to that payload (`@keychain:NAME` works,
-  bound secrets are checked against the server like everywhere else).
+- The token is sent exactly like for a request: in the `Authorization` header of
+  the upgrade, and only to the active server (an absolute `-e` URL on another
+  host gets none). Servers made for browsers read it from `connection_init`
+  instead: `--token-in-init` or `ws_token_in_init = true`. `--init key=value`
+  adds more fields to that payload (`@keychain:NAME` works, bound secrets are
+  checked against the server like everywhere else).
 - A redirect on the upgrade is never followed, a plain `ws://` to a non-local
   host warns, `-k` skips certificate checks, and `--dry` / `--debug` mask the
   token in the header and in `connection_init`.
@@ -365,9 +365,10 @@ api schema sync --prefix v2/ user auth    # concurrent; rebuilds ~/.cache/ugql f
 `~/.cache/ugql/<server>/`, one directory per server, so a project on another
 server cannot overwrite these schemas. `~/.cache/ugql/current` is a link to the
 last server synced: the fzf pickers and the television channel read it (same
-format as before; the previews stay `jq`: they run in subprocesses). With no endpoint it uses the env's `endpoints` from the config;
-names become file names, so only letters, digits and `_ - .` are accepted.
-`--dry` prints the requests and writes nothing.
+format as before; the previews stay `jq`: they run in subprocesses). With no
+endpoint it uses the env's `endpoints` from the config; names become file names,
+so only letters, digits and `_ - .` are accepted. `--dry` prints the requests
+and writes nothing.
 
 **Stay logged in: `token_cache` and `auto_login`** (both off; global config
 only):
@@ -504,11 +505,11 @@ unknown keys are rejected (the error names the key, never the value), and
 
 ### Headers
 
-| Where                        | Use it for                                                  |
-| ---------------------------- | ----------------------------------------------------------- |
-| `-H "Name: value"`           | one call; wins over the env's header of the same name       |
-| `[env.x] headers = { ... }`  | plain headers every call to that env needs (`X-Tenant`, `Accept-Language`, an API version); `api config set env.x.headers.NAME value` writes one |
-| a `.http` request            | lines after the request line; `{{variables}}` are expanded  |
+| Where                       | Use it for                                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `-H "Name: value"`          | one call; wins over the env's header of the same name                                                                                            |
+| `[env.x] headers = { ... }` | plain headers every call to that env needs (`X-Tenant`, `Accept-Language`, an API version); `api config set env.x.headers.NAME value` writes one |
+| a `.http` request           | lines after the request line; `{{variables}}` are expanded                                                                                       |
 
 Order: the env's headers, then `-H`, then the token (`Authorization`, only if
 you set none), then the `Accept: application/json` default. Names match
@@ -518,9 +519,9 @@ requests and the config all go through `httpc.CheckHeader`, the config is
 refused on read and in `config set`, and the error names the header, never its
 value.
 
-**An API key header (`X-API-Key`, `X-Auth-Token`, ...) is a secret, so it is
-not kept in config** (`config set` refuses it, `config validate` warns). Pass it
-per call, from your own environment:
+**An API key header (`X-API-Key`, `X-Auth-Token`, ...) is a secret, so it is not
+kept in config** (`config set` refuses it, `config validate` warns). Pass it per
+call, from your own environment:
 
 ```bash
 api get /users -H "X-API-Key: $MY_KEY"
@@ -745,12 +746,12 @@ ignore the unknown comment, so the same file works there.
 **`api history`, `api again [N]`** list and repeat recent requests. Only the
 method, path, filter and the **server** (its origin, not a token) are stored:
 never bodies, headers or tokens, and a path with a secret-looking query
-parameter is not recorded. The file is shared by every project, so `history`
-and `again` only see requests to the server the shell points at (`history -a`
-shows all of them, with the server; entries from before servers were recorded
-show as `(no server)` and are never repeated). `again` refuses an entry that
-went to another server instead of sending it to this one. A GET is repeated from
-its path. `again --pick` chooses with fzf.
+parameter is not recorded. The file is shared by every project, so `history` and
+`again` only see requests to the server the shell points at (`history -a` shows
+all of them, with the server; entries from before servers were recorded show as
+`(no server)` and are never repeated). `again` refuses an entry that went to
+another server instead of sending it to this one. A GET is repeated from its
+path. `again --pick` chooses with fzf.
 
 What you pick with `api openapi pick` or `api gql --pick` is kept as a file in
 `.api/requests/` (`--no-save` skips that), next to a `.orig` copy of the
@@ -764,8 +765,8 @@ changes data (`--yes` skips the question).
 saving to cancel. What you saved stays, whether or not the run worked, so the
 next `--edit` starts from your last attempt; the version it replaced is kept
 once as `<name>.http.bak`. `api again --default` starts that edit from the
-original skeleton instead (the `.orig` copy), when you want to begin again.
-With `--pick`, `--edit` and `--default` offer only saved requests, and
+original skeleton instead (the `.orig` copy), when you want to begin again. With
+`--pick`, `--edit` and `--default` offer only saved requests, and
 `api history --runs` lists just those (with the same numbers as the full list).
 
 `api requests ls` shows the saved requests with their method and URL, and
@@ -843,16 +844,19 @@ added as one more decoder in `internal/openapi`.
 - **Pager:** long output on a terminal goes through `less -FRX` (it quits by
   itself when the output fits one screen). `--no-pager` or an empty `API_PAGER`
   turns it off; `api watch`, `-o` and empty output never page.
-- **Viewer:** `api gql`, `api openapi pick` and `api again` take `--viewer` to look
-  at the result in a viewer that can fold and search instead of printing it:
-  `--viewer jless`, `fx`, `nvim` / `vim` (read-only, folded by indentation) or any
-  command that reads stdin (`--viewer "bat -l json"`; words are split, no shell).
-  It is only for you at the keyboard: nothing in a config file or a repo can choose
-  it, it opens only when stdout is a terminal (through a pipe the body is printed as
-  usual), the filter still applies, the exit code is unchanged (a viewed 500 is
-  still 22), and a viewer that is missing or fails just prints the body instead.
-  Not for subscriptions (pipe those). For other commands pipe: `api get /x | jless`.
-  A shell alias keeps it short: `alias apiv='api --viewer jless'`.
+- **Viewer:** `api get`, `post`, `put`, `patch`, `del`, `form`, `gql`,
+  `openapi pick` and `again` take `--viewer` to look at the result in a viewer
+  that can fold and search instead of printing it: `--viewer nvim` (read-only,
+  folded by indentation), `jless`, `fx`, or any command that reads stdin
+  (`--viewer "bat -l json"`; words are split, no shell). It is only for you at
+  the keyboard: nothing in a config file or a repo can choose it, it opens only
+  when stdout is a terminal (through a pipe the body is printed as usual), the
+  filter still applies, the exit code is unchanged (a viewed 500 is still 22),
+  and a viewer that is missing or fails just prints the body instead. Not for
+  subscriptions (pipe those) nor for the commands that print several results
+  (`run`, `diff`) or stream (`watch`): pipe those, e.g.
+  `api run f.http | jless`. A shell alias keeps it short:
+  `alias apiv='api get --viewer nvim'`.
 
 ## Environment variables
 
@@ -901,7 +905,8 @@ failed · `4` GraphQL errors (`--strict`) · `5` bad jq filter · `22` HTTP >= 4
 - `env load`: the `.env.<suffix>` files of the project
 - `run`: saved files, then the requests inside the chosen file
 - `again`: the history entries; `-H`: common headers
-- `gql -e`: the env's `endpoints`, `$API_GQL_ENDPOINTS`, `~/.cache/ugql/<server>/*.json`
+- `gql -e`: the env's `endpoints`, `$API_GQL_ENDPOINTS`,
+  `~/.cache/ugql/<server>/*.json`
 
 Completion is offline and fast; it never calls the network.
 

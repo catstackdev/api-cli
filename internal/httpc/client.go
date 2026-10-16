@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,12 +24,52 @@ type Response struct {
 	Header     http.Header
 	Body       []byte
 	Duration   time.Duration
+	Timing     Timing
 }
 
-// Timing is the phase breakdown shown by `api time`.
+// Timing is the phase breakdown shown by `api time` and `-v`. The phases are
+// cumulative from the start of the attempt, like curl's time_namelookup /
+// time_connect / time_appconnect / time_starttransfer.
 type Timing struct {
 	DNS, Connect, TLS, TTFB, Total time.Duration
 	Status                         int
+	// Reused is true when the connection was already open: DNS, Connect and TLS
+	// then did not happen in this attempt, and 0 means "skipped", not "instant".
+	Reused bool
+}
+
+// timingRecorder collects the trace hooks of one attempt. The dial hooks run on
+// the transport's own goroutines (and ConnectDone can fire once per address),
+// so the writes are guarded.
+type timingRecorder struct {
+	mu    sync.Mutex
+	start time.Time
+	t     Timing
+}
+
+func (r *timingRecorder) hooks() *httptrace.ClientTrace {
+	since := func(set func(*Timing, time.Duration)) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		set(&r.t, time.Since(r.start))
+	}
+	return &httptrace.ClientTrace{
+		DNSDone:          func(httptrace.DNSDoneInfo) { since(func(t *Timing, d time.Duration) { t.DNS = d }) },
+		ConnectDone:      func(string, string, error) { since(func(t *Timing, d time.Duration) { t.Connect = d }) },
+		TLSHandshakeDone: func(tls.ConnectionState, error) { since(func(t *Timing, d time.Duration) { t.TLS = d }) },
+		GotConn: func(info httptrace.GotConnInfo) {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			r.t.Reused = info.Reused
+		},
+		GotFirstResponseByte: func() { since(func(t *Timing, d time.Duration) { t.TTFB = d }) },
+	}
+}
+
+func (r *timingRecorder) snapshot() Timing {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.t
 }
 
 func newClient(s Spec) *http.Client {
@@ -141,12 +182,15 @@ func Do(ctx context.Context, s Spec, retries int) (*Response, error) {
 	return resp, err
 }
 
+// once sends one attempt. The trace is per attempt, so after a retry the
+// timings are those of the attempt that produced the answer.
 func once(ctx context.Context, client *http.Client, s Spec) (*Response, error) {
-	req, err := NewRequest(ctx, s)
+	rec := &timingRecorder{}
+	req, err := NewRequest(httptrace.WithClientTrace(ctx, rec.hooks()), s)
 	if err != nil {
 		return nil, err
 	}
-	start := time.Now()
+	rec.start = time.Now()
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -156,47 +200,18 @@ func once(ctx context.Context, client *http.Client, s Spec) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	total := time.Since(rec.start)
+	timing := rec.snapshot()
+	timing.Total, timing.Status = total, res.StatusCode
 	return &Response{
 		Status:     res.StatusCode,
 		StatusText: http.StatusText(res.StatusCode),
 		Proto:      res.Proto,
 		Header:     res.Header,
 		Body:       body,
-		Duration:   time.Since(start),
+		Duration:   total,
+		Timing:     timing,
 	}, nil
-}
-
-// Trace sends the request once and records the phase timings.
-func Trace(ctx context.Context, s Spec) (Timing, error) {
-	var (
-		t     Timing
-		start time.Time
-	)
-	// Cumulative from the start, like curl's time_namelookup / time_connect /
-	// time_appconnect / time_starttransfer.
-	trace := &httptrace.ClientTrace{
-		DNSDone:              func(httptrace.DNSDoneInfo) { t.DNS = time.Since(start) },
-		ConnectDone:          func(string, string, error) { t.Connect = time.Since(start) },
-		TLSHandshakeDone:     func(tls.ConnectionState, error) { t.TLS = time.Since(start) },
-		GotFirstResponseByte: func() { t.TTFB = time.Since(start) },
-	}
-
-	req, err := NewRequest(httptrace.WithClientTrace(ctx, trace), s)
-	if err != nil {
-		return t, err
-	}
-	start = time.Now()
-	res, err := newClient(s).Do(req)
-	if err != nil {
-		return t, err
-	}
-	defer res.Body.Close()
-	if _, err := io.Copy(io.Discard, res.Body); err != nil {
-		return t, err
-	}
-	t.Total = time.Since(start)
-	t.Status = res.StatusCode
-	return t, nil
 }
 
 // ExitCode maps a transport error to a curl-compatible exit code.

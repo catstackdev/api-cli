@@ -31,20 +31,45 @@ func TestViewerArgv(t *testing.T) {
 	}
 }
 
-// the viewer is for looking at ONE result: only these three commands take it
-func TestViewerFlagIsOnlyOnGqlPickAndAgain(t *testing.T) {
-	for _, args := range [][]string{{"gql", "--help"}, {"openapi", "pick", "--help"}, {"again", "--help"}} {
+// the viewer is for looking at ONE result: the commands that show one take it, the
+// ones that print several (run, diff) or stream (watch) do not
+func TestViewerFlagIsOnTheCommandsThatShowOneResult(t *testing.T) {
+	for _, args := range [][]string{
+		{"get", "--help"}, {"post", "--help"}, {"put", "--help"}, {"patch", "--help"}, {"del", "--help"},
+		{"form", "--help"}, {"gql", "--help"}, {"openapi", "pick", "--help"}, {"again", "--help"},
+	} {
 		if r := run(t, "", args...); r.code != 0 || !strings.Contains(r.out, "--viewer") {
 			t.Errorf("api %s must list --viewer (exit %d)", strings.Join(args, " "), r.code)
 		}
 	}
-	for _, args := range [][]string{{"get", "--help"}, {"run", "--help"}, {"diff", "--help"}} {
+	for _, args := range [][]string{{"run", "--help"}, {"diff", "--help"}, {"watch", "--help"}} {
 		if r := run(t, "", args...); strings.Contains(r.out, "--viewer") {
 			t.Errorf("api %s must not take --viewer", strings.Join(args, " "))
 		}
 	}
-	if r := run(t, "", "get", "/x", "--viewer", "cat"); r.code != exitUsage {
-		t.Errorf("get --viewer must be a usage error, got exit %d", r.code)
+	if r := run(t, "", "run", "x.http", "--viewer", "cat"); r.code != exitUsage {
+		t.Errorf("run --viewer must be a usage error, got exit %d", r.code)
+	}
+}
+
+// a plain request shows its result in the viewer like gql does: on a terminal only,
+// the filter applies, the exit code stays
+func TestViewerWorksOnAPlainRequest(t *testing.T) {
+	srv, _ := envServer(t)
+	t.Setenv("API_BASE_URL", srv.URL)
+	t.Setenv("API_TOKEN", "")
+	t.Setenv("API_GRAPHQL_URL", "")
+
+	withTerminal(t)
+	r := run(t, "", "get", "/x", ".ok", "--viewer", "sh -c 'echo VIEWED; cat'")
+	if r.code != 0 || !strings.HasPrefix(r.out, "VIEWED\n") || !strings.Contains(r.out, "true") {
+		t.Fatalf("on a terminal the viewer shows the filtered body: exit %d out %q err %q", r.code, r.out, r.err)
+	}
+
+	viewerTTY = func(any) bool { return false } // withTerminal restores the original at cleanup
+	r = run(t, "", "get", "/x", ".ok", "--viewer", "sh -c 'echo VIEWED; cat'")
+	if r.code != 0 || strings.Contains(r.out, "VIEWED") || !strings.Contains(r.out, "true") {
+		t.Fatalf("through a pipe the body is printed as usual: exit %d out %q", r.code, r.out)
 	}
 }
 

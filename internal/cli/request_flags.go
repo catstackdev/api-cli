@@ -84,12 +84,14 @@ func (a *app) bindTransportFlags(o *reqOpts, f *pflag.FlagSet) {
 	f.DurationVar(&o.connect, "connect-timeout", a.envSeconds("CURL_CONNECT_TIMEOUT", a.cfgDuration(a.cfg.Defaults.ConnectTimeout, 10*time.Second)), "connect time limit (env CURL_CONNECT_TIMEOUT, seconds)")
 	f.IntVar(&o.retry, "retry", a.cfgRetry(), "retry transport errors and 502/503/504 N times")
 	f.BoolVarP(&o.insecure, "insecure", "k", false, "skip TLS certificate verification")
+	// every command that sends a request can show it (see send): -v lives here, not
+	// with the output flags, so the sync commands that print no body have it too
+	f.BoolVarP(&o.verbose, "verbose", "v", false, "print the masked request, response headers and timings to stderr")
 }
 
 func (a *app) bindOutputFlags(o *reqOpts, f *pflag.FlagSet) {
 	f.StringVarP(&o.output, "output", "o", "", "write the body to a file")
 	f.BoolVarP(&o.include, "include", "i", false, "print the status line and response headers")
-	f.BoolVarP(&o.verbose, "verbose", "v", false, "print request and response headers to stderr")
 	f.BoolVar(&o.summary, "summary", a.getenv("API_SUMMARY") != "" || a.cfgSummary(), "print a status/type/time/size footer to stderr (env API_SUMMARY)")
 	f.BoolVarP(&o.table, "table", "t", false, "print an array of objects (or one object) as a table")
 	f.StringSliceVar(&o.columns, "columns", nil, "with --table: the columns to show, in order (a,b,c)")
